@@ -1,0 +1,331 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import {
+  Hash,
+  Lock,
+  Plus,
+  Bot,
+  Circle,
+  MessageSquare,
+  Phone,
+} from "lucide-react";
+import { BoxSwitcher } from "@/components/chat/box-switcher";
+import { UserPopover } from "@/components/chat/user-popover";
+import { createClient } from "@/lib/supabase/client";
+import type {
+  BoxData,
+  SidebarChannel,
+  MemberData,
+  UserData,
+} from "@/lib/chat-helpers";
+
+export interface SidebarCall {
+  id: string;
+  channel_id: string | null;
+  conversation_id: string | null;
+  started_by: string;
+  started_at: string;
+  channel_name?: string;
+  starter_name?: string;
+}
+
+interface ChatSidebarProps {
+  user: UserData;
+  boxes: BoxData[];
+  box: (BoxData & { description?: string | null }) | null;
+  channels: SidebarChannel[];
+  members: MemberData[];
+  currentUserId: string;
+  /** short_id of the active channel (if on a channel page) */
+  activeChannelId?: string;
+  /** user_id of the active DM partner (if on a DM page) */
+  activeDmUserId?: string;
+  unreadCounts?: Record<string, number>;
+  activeCalls?: SidebarCall[];
+  getStatus: (userId: string) => string;
+  onCreateChannel: () => void;
+  onStartDm: (targetUserId: string) => void;
+  onInvite: () => void;
+  onJoinCall?: (call: SidebarCall) => void;
+  dmLoading?: string | null;
+}
+
+export function ChatSidebar({
+  user,
+  boxes,
+  box,
+  channels,
+  members,
+  currentUserId,
+  activeChannelId,
+  activeDmUserId,
+  unreadCounts,
+  activeCalls: initialCalls,
+  getStatus,
+  onCreateChannel,
+  onStartDm,
+  onInvite,
+  onJoinCall,
+  dmLoading,
+}: ChatSidebarProps) {
+  const router = useRouter();
+  const isAdmin = box?.role === "owner" || box?.role === "admin";
+  const otherMembers = members.filter((m) => m.user_id !== currentUserId);
+  const [activeCalls, setActiveCalls] = useState<SidebarCall[]>(initialCalls ?? []);
+
+  // Realtime subscription for calls
+  useEffect(() => {
+    if (!box) return;
+
+    const supabase = createClient();
+    const channelIds = channels.map((c) => c.id);
+    if (channelIds.length === 0) return;
+
+    const subscription = supabase
+      .channel(`sidebar-calls-${box.id}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "calls" },
+        async (payload) => {
+          const newCall = payload.new as {
+            id: string;
+            channel_id: string | null;
+            conversation_id: string | null;
+            started_by: string;
+            started_at: string;
+            ended_at: string | null;
+          };
+          if (!newCall.channel_id || !channelIds.includes(newCall.channel_id)) return;
+          if (newCall.ended_at) return;
+
+          // Look up channel name and starter name
+          const ch = channels.find((c) => c.id === newCall.channel_id);
+          const member = members.find((m) => m.user_id === newCall.started_by);
+          setActiveCalls((prev) => [
+            ...prev.filter((c) => c.id !== newCall.id),
+            {
+              id: newCall.id,
+              channel_id: newCall.channel_id,
+              conversation_id: newCall.conversation_id,
+              started_by: newCall.started_by,
+              started_at: newCall.started_at,
+              channel_name: ch?.name,
+              starter_name: member?.full_name || member?.email,
+            },
+          ]);
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "calls" },
+        (payload) => {
+          const updated = payload.new as { id: string; ended_at: string | null };
+          if (updated.ended_at) {
+            // Call ended — remove from list
+            setActiveCalls((prev) => prev.filter((c) => c.id !== updated.id));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(subscription);
+    };
+  }, [box, channels, members]);
+
+  return (
+    <div className="flex w-[240px] shrink-0 flex-col border-r border-[#1a1a1a] bg-[#0a0a0a]">
+      {/* Box header */}
+      {box ? (
+        <BoxSwitcher boxes={boxes} currentBox={box} />
+      ) : (
+        <div className="flex h-14 items-center gap-2 border-b border-[#1a1a1a] px-4">
+          <Link href="/dashboard" className="flex items-center gap-2">
+            <div className="flex h-6 w-6 items-center justify-center rounded-[4px] bg-white">
+              <MessageSquare className="h-3.5 w-3.5 text-black" />
+            </div>
+            <span className="text-[14px] font-semibold text-white">
+              Messages
+            </span>
+          </Link>
+        </div>
+      )}
+
+      {/* Channels + DMs */}
+      <div className="flex-1 overflow-auto px-2 py-3">
+        {box && channels.length > 0 && (
+          <>
+            <div className="mb-1.5 flex items-center justify-between px-2">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#444]">
+                Channels
+              </span>
+              <button
+                onClick={onCreateChannel}
+                className="flex h-4 w-4 items-center justify-center rounded text-[#444] hover:text-white"
+              >
+                <Plus className="h-3 w-3" />
+              </button>
+            </div>
+            <div className="space-y-0.5">
+              {channels.map((ch) => {
+                const isActive = ch.short_id === activeChannelId;
+                const unread = unreadCounts?.[ch.id] ?? 0;
+                return (
+                  <Link
+                    key={ch.id}
+                    href={`/box/${box.short_id}/c/${ch.short_id}`}
+                    className={`flex items-center gap-2 rounded-[6px] px-2 py-1.5 text-[13px] transition-colors ${
+                      isActive
+                        ? "bg-[#1a1a1a] font-medium text-white"
+                        : "text-[#666] hover:bg-[#111] hover:text-[#aaa]"
+                    }`}
+                  >
+                    {ch.is_private ? (
+                      <Lock className="h-3.5 w-3.5 shrink-0 text-[#555]" />
+                    ) : (
+                      <Hash className="h-3.5 w-3.5 shrink-0 text-[#555]" />
+                    )}
+                    <span className="truncate">{ch.name}</span>
+                    {!isActive && unread > 0 && (
+                      <span className="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-white px-1 text-[10px] font-bold text-black">
+                        {unread}
+                      </span>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          </>
+        )}
+
+        {/* Active Calls */}
+        {activeCalls.length > 0 && (
+          <div className={`${box && channels.length > 0 ? "mt-5" : ""}`}>
+            <div className="mb-1.5 flex items-center justify-between px-2">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#444]">
+                Active Calls
+              </span>
+            </div>
+            <div className="space-y-0.5">
+              {activeCalls.map((call) => {
+                const ch = channels.find((c) => c.id === call.channel_id);
+                const displayName = call.channel_name || ch?.name || "Call";
+                return (
+                  <button
+                    key={call.id}
+                    onClick={() => {
+                      if (onJoinCall) {
+                        onJoinCall(call);
+                      } else if (ch && box) {
+                        router.push(`/box/${box.short_id}/c/${ch.short_id}`);
+                      }
+                    }}
+                    className="flex w-full items-center gap-2 rounded-[6px] px-2 py-1.5 text-[13px] text-[#22c55e] transition-colors hover:bg-[#111]"
+                  >
+                    <div className="relative flex h-5 w-5 shrink-0 items-center justify-center">
+                      <Phone className="h-3.5 w-3.5" />
+                      <div className="absolute -right-0.5 -top-0.5 h-2 w-2 animate-pulse rounded-full bg-[#22c55e]" />
+                    </div>
+                    <span className="truncate">#{displayName}</span>
+                    <span className="ml-auto rounded-full bg-[#22c55e]/15 px-2 py-0.5 text-[10px] font-semibold">
+                      Join
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Direct Messages */}
+        <div
+          className={`${box && channels.length > 0 || activeCalls.length > 0 ? "mt-5" : ""} mb-1.5 flex items-center justify-between px-2`}
+        >
+          <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#444]">
+            Direct Messages
+          </span>
+        </div>
+        <div className="space-y-0.5">
+          {/* Sherlock AI */}
+          {box && (
+            <Link
+              href={`/box/${box.short_id}/sherlock`}
+              className="flex items-center gap-2 rounded-[6px] px-2 py-1.5 text-[13px] text-[#666] transition-colors hover:bg-[#111] hover:text-[#aaa]"
+            >
+              <div className="relative flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#276ef1]">
+                <Bot className="h-3 w-3 text-white" />
+              </div>
+              <span className="truncate font-medium">Sherlock</span>
+              <span className="ml-auto rounded bg-[#276ef1]/20 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-[#276ef1]">
+                AI
+              </span>
+            </Link>
+          )}
+
+          {/* Workspace members */}
+          {otherMembers.map((m) => {
+            const initials = m.full_name
+              ? m.full_name
+                  .split(" ")
+                  .map((n) => n[0])
+                  .join("")
+                  .toUpperCase()
+                  .slice(0, 2)
+              : m.email[0].toUpperCase();
+            const isCurrentDm = m.user_id === activeDmUserId;
+            const liveStatus = getStatus(m.user_id);
+            const statusColor =
+              liveStatus === "online"
+                ? "bg-[#22c55e]"
+                : liveStatus === "away"
+                  ? "bg-[#f59e0b]"
+                  : "bg-[#555]";
+            return (
+              <button
+                key={m.user_id}
+                onClick={() => onStartDm(m.user_id)}
+                disabled={dmLoading === m.user_id}
+                className={`flex w-full items-center gap-2 rounded-[6px] px-2 py-1.5 text-[13px] transition-colors disabled:opacity-50 ${
+                  isCurrentDm
+                    ? "bg-[#1a1a1a] font-medium text-white"
+                    : "text-[#666] hover:bg-[#111] hover:text-[#aaa]"
+                }`}
+              >
+                <div className="relative h-5 w-5 shrink-0">
+                  {m.avatar_url ? (
+                    <img
+                      src={m.avatar_url}
+                      alt=""
+                      className="h-5 w-5 rounded-full"
+                    />
+                  ) : (
+                    <div className="flex h-5 w-5 items-center justify-center rounded-full bg-[#1a1a1a] text-[8px] font-bold text-white">
+                      {initials}
+                    </div>
+                  )}
+                  <Circle
+                    className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ${statusColor} fill-current stroke-[#0a0a0a] stroke-[3]`}
+                  />
+                </div>
+                <span className="truncate">{m.full_name || m.email}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* User popover */}
+      <UserPopover
+        user={user}
+        isAdmin={isAdmin}
+        onInvite={onInvite}
+        boxId={box?.id}
+        boxName={box?.name}
+        boxRole={box?.role}
+      />
+    </div>
+  );
+}

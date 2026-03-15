@@ -1,0 +1,125 @@
+import Link from "next/link";
+import { MessageSquare } from "lucide-react";
+
+export function MarketingNav() {
+  return (
+    <nav className="fixed top-0 z-50 w-full border-b border-white/[0.06] bg-[#0a0a0a]/80 backdrop-blur-xl">
+      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
+        <div className="flex items-center gap-8">
+          <Link href="/" className="flex items-center gap-2.5">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-white">
+              <MessageSquare className="h-3.5 w-3.5 text-black" />
+            </div>
+            <span className="text-[16px] font-bold tracking-[-0.01em] text-white">
+              Chatterbox
+            </span>
+          </Link>
+
+          <div className="hidden items-center gap-1 lg:flex">
+            {[
+              { label: "Pricing", href: "/pricing" },
+              { label: "About", href: "/about" },
+            ].map((item) => (
+              <Link
+                key={item.label}
+                href={item.href}
+                className="rounded-lg px-3 py-1.5 text-[13px] text-[#777] transition-colors hover:bg-white/[0.04] hover:text-white"
+              >
+                {item.label}
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Link
+            href="/login"
+            className="rounded-lg px-4 py-1.5 text-[13px] font-medium text-[#999] transition-colors hover:text-white"
+          >
+            Log in
+          </Link>
+          <Link
+            href="/signup"
+            className="rounded-lg bg-white px-4 py-1.5 text-[13px] font-medium text-black transition-colors hover:bg-[#e8e8e8]"
+          >
+            Get started
+          </Link>
+        </div>
+      </div>
+    </nav>
+  );
+}
+
+export function MarketingFooter() {
+  return (
+    <footer className="border-t border-white/[0.06] py-12">
+      <div className="mx-auto max-w-6xl px-6">
+        <div className="flex flex-col gap-10 md:flex-row md:items-start md:justify-between">
+          <div>
+            <div className="mb-3 flex items-center gap-2.5">
+              <div className="flex h-6 w-6 items-center justify-center rounded-md bg-white">
+                <MessageSquare className="h-3 w-3 text-black" />
+              </div>
+              <span className="text-[15px] font-bold text-white">
+                Chatterbox
+              </span>
+            </div>
+            <p className="max-w-xs text-[13px] leading-[20px] text-[#555]">
+              Team communication, done right.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-3 gap-12">
+            {[
+              {
+                title: "Product",
+                links: [
+                  { label: "Features", href: "/#features" },
+                  { label: "Pricing", href: "/pricing" },
+                  { label: "Security", href: "/#security" },
+                ],
+              },
+              {
+                title: "Company",
+                links: [
+                  { label: "About", href: "/about" },
+                  { label: "Blog", href: "#" },
+                  { label: "Careers", href: "#" },
+                ],
+              },
+              {
+                title: "Legal",
+                links: [
+                  { label: "Privacy", href: "/privacy" },
+                  { label: "Terms", href: "/terms" },
+                ],
+              },
+            ].map((col) => (
+              <div key={col.title}>
+                <h4 className="mb-3 text-[12px] font-semibold uppercase tracking-[0.08em] text-[#555]">
+                  {col.title}
+                </h4>
+                <ul className="space-y-2 text-[13px] text-[#444]">
+                  {col.links.map((link) => (
+                    <li key={link.label}>
+                      <Link
+                        href={link.href}
+                        className="transition-colors hover:text-white"
+                      >
+                        {link.label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-12 border-t border-white/[0.06] pt-6 text-[12px] text-[#444]">
+          &copy; {new Date().getFullYear()} Chatterbox. All rights reserved.
+        </div>
+      </div>
+    </footer>
+  );
+}

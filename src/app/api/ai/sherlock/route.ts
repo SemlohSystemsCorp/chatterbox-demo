@@ -1,0 +1,140 @@
+import { createClient } from "@/lib/supabase/server";
+import { NextResponse, type NextRequest } from "next/server";
+import Anthropic from "@anthropic-ai/sdk";
+import { fetchBoxChannelIds, formatMessagesForClaude } from "@/lib/ai-utils";
+import type { ContextMessage } from "@/lib/ai-utils";
+
+const anthropic = new Anthropic();
+
+export async function POST(request: NextRequest) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { box_id, messages: conversationMessages } = await request.json();
+
+  if (!box_id) {
+    return NextResponse.json(
+      { error: "box_id is required" },
+      { status: 400 }
+    );
+  }
+
+  // Verify membership
+  const { data: membership } = await supabase
+    .from("box_members")
+    .select("role")
+    .eq("box_id", box_id)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (!membership) {
+    return NextResponse.json({ error: "Not a member" }, { status: 403 });
+  }
+
+  // Gather workspace context
+  const [channelsResult, membersResult] = await Promise.all([
+    supabase
+      .from("channels")
+      .select("name, description")
+      .eq("box_id", box_id)
+      .eq("is_archived", false),
+    supabase
+      .from("box_members")
+      .select("role, profiles(full_name, email)")
+      .eq("box_id", box_id),
+  ]);
+
+  const { data: boxData } = await supabase
+    .from("boxes")
+    .select("name")
+    .eq("id", box_id)
+    .single();
+
+  const channelList = (channelsResult.data ?? [])
+    .map((c) => `#${c.name}${c.description ? ` — ${c.description}` : ""}`)
+    .join("\n");
+
+  const memberList = (membersResult.data ?? [])
+    .map((m) => {
+      const p = m.profiles as unknown as {
+        full_name: string;
+        email: string;
+      };
+      return `${p.full_name || p.email} (${m.role})`;
+    })
+    .join(", ");
+
+  // Fetch recent messages across channels for context
+  const channelIds = await fetchBoxChannelIds(supabase, box_id);
+  let recentContext = "";
+
+  if (channelIds.length > 0) {
+    const { data: recentMsgs } = await supabase
+      .from("messages")
+      .select(
+        "id, content, created_at, profiles:sender_id(full_name, email), channels:channel_id(name)"
+      )
+      .in("channel_id", channelIds)
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    const mapped: ContextMessage[] = (recentMsgs ?? []).map((m) => {
+      const profile = m.profiles as unknown as {
+        full_name: string;
+        email: string;
+      } | null;
+      const channel = m.channels as unknown as { name: string } | null;
+      return {
+        id: m.id,
+        content: m.content,
+        created_at: m.created_at,
+        sender_name: profile?.full_name || profile?.email || "Unknown",
+        channel_name: channel?.name ?? null,
+      };
+    });
+
+    if (mapped.length > 0) {
+      recentContext = `\n\nRecent workspace activity:\n${formatMessagesForClaude(mapped)}`;
+    }
+  }
+
+  const systemPrompt = `You are Sherlock, an AI assistant for the "${boxData?.name ?? "this"}" workspace on Chatterbox. You have a friendly but sharp Sherlock Holmes persona — witty, observant, and helpful.
+
+Workspace: ${boxData?.name ?? "Unknown"}
+Channels:\n${channelList || "No channels yet"}
+Members: ${memberList || "No members yet"}${recentContext}
+
+You can help with:
+- Answering questions about what's been discussed in the workspace
+- Brainstorming and ideation
+- Drafting messages, announcements, and docs
+- Summarizing conversations
+- General assistance
+
+Be concise and helpful. Reference specific messages, channels, or people when relevant. If you don't have enough context to answer, say so honestly.`;
+
+  const claudeMessages = (conversationMessages ?? []).map(
+    (m: { role: string; content: string }) => ({
+      role: m.role as "user" | "assistant",
+      content: m.content,
+    })
+  );
+
+  const response = await anthropic.messages.create({
+    model: "claude-sonnet-4-20250514",
+    max_tokens: 800,
+    system: systemPrompt,
+    messages: claudeMessages,
+  });
+
+  const content =
+    response.content[0].type === "text" ? response.content[0].text : "";
+
+  return NextResponse.json({ content });
+}
