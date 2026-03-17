@@ -15,9 +15,14 @@ import {
   UserPlus,
   LogIn,
   LogOut,
+  Pencil,
+  Trash2,
+  BarChart3,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { CreateChannelModal } from "@/components/modals/create-channel-modal";
+import { ChannelSettingsModal } from "@/components/modals/channel-settings-modal";
+import { CreatePollModal } from "@/components/modals/create-poll-modal";
 import { InviteModal } from "@/components/modals/invite-modal";
 import { AddToChannelModal } from "@/components/modals/add-to-channel-modal";
 import { SearchModal } from "@/components/modals/search-modal";
@@ -26,7 +31,7 @@ import { DigestModal } from "@/components/modals/digest-modal";
 import { HighlightsPanel } from "@/components/chat/highlights-panel";
 import { PinnedMessagesPanel } from "@/components/chat/pinned-messages-panel";
 import { NotificationBell } from "@/components/notifications/notification-bell";
-import { ChatSidebar, type SidebarCall } from "@/components/chat/chat-sidebar";
+import { ChatSidebar, type SidebarCall, type SidebarConversation } from "@/components/chat/chat-sidebar";
 import { MessageComposer } from "@/components/chat/message-composer";
 import {
   MessageContent,
@@ -40,6 +45,7 @@ import {
 } from "@/components/chat/message-components";
 import { createClient } from "@/lib/supabase/client";
 import { showPushNotification } from "@/lib/notifications";
+import { parseSlashCommand, executeCommand } from "@/lib/slash-commands";
 import { MemberProfileCard } from "@/components/chat/member-profile-card";
 import { usePresence } from "@/hooks/use-presence";
 import { useTyping } from "@/hooks/use-typing";
@@ -109,6 +115,7 @@ interface ChannelPageClientProps {
   channels: SidebarChannel[];
   members: MemberData[];
   channelMembers: ChannelMemberData[];
+  conversations: SidebarConversation[];
   unreadCounts: Record<string, number>;
   initialReadCursors: ReadCursor[];
   initialMessages: MessageData[];
@@ -190,6 +197,7 @@ export function ChannelPageClient({
   channels,
   members,
   channelMembers: initialChannelMembers,
+  conversations,
   unreadCounts: initialUnreadCounts,
   initialReadCursors,
   initialMessages,
@@ -200,6 +208,8 @@ export function ChannelPageClient({
   const router = useRouter();
   const [messages, setMessages] = useState<MessageData[]>(initialMessages);
   const [channelEvents, setChannelEvents] = useState<ChannelEventData[]>(initialEvents);
+  const [liveChannels, setLiveChannels] = useState<SidebarChannel[]>(channels);
+  const [liveMembers, setLiveMembers] = useState<MemberData[]>(members);
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -224,6 +234,8 @@ export function ChannelPageClient({
   // Channel members (private channels)
   const [channelMembersList, setChannelMembersList] = useState<ChannelMemberData[]>(initialChannelMembers);
   const [addToChannelOpen, setAddToChannelOpen] = useState(false);
+  const [channelSettingsOpen, setChannelSettingsOpen] = useState(false);
+  const [createPollOpen, setCreatePollOpen] = useState(false);
   const [leavingChannel, setLeavingChannel] = useState(false);
 
   const isBoxAdmin = box.role === "owner" || box.role === "admin";
@@ -681,7 +693,7 @@ export function ChannelPageClient({
       .subscribe();
 
     // Subscribe to new messages in OTHER channels for sidebar unread badges
-    const otherChannelIds = channels
+    const otherChannelIds = liveChannels
       .filter((ch) => ch.id !== channel.id)
       .map((ch) => ch.id);
 
@@ -743,12 +755,274 @@ export function ChannelPageClient({
     };
   }, [channel.id, user.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Realtime: channels & members ──
+  useEffect(() => {
+    const supabase = createClient();
+
+    // Channel CRUD (create/rename/delete) — updates sidebar
+    const channelsSub = supabase
+      .channel(`box-channels-${box.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "channels",
+          filter: `box_id=eq.${box.id}`,
+        },
+        (payload) => {
+          const ch = payload.new as SidebarChannel;
+          setLiveChannels((prev) => {
+            if (prev.some((c) => c.id === ch.id)) return prev;
+            return [...prev, ch];
+          });
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "channels",
+          filter: `box_id=eq.${box.id}`,
+        },
+        (payload) => {
+          const ch = payload.new as SidebarChannel;
+          setLiveChannels((prev) =>
+            prev.map((c) => (c.id === ch.id ? { ...c, name: ch.name, description: ch.description, is_private: ch.is_private, is_archived: ch.is_archived } : c))
+          );
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "channels",
+          filter: `box_id=eq.${box.id}`,
+        },
+        (payload) => {
+          const old = payload.old as { id: string };
+          setLiveChannels((prev) => prev.filter((c) => c.id !== old.id));
+          // If current channel was deleted, redirect
+          if (old.id === channel.id) {
+            router.push(`/box/${box.short_id}`);
+            router.refresh();
+          }
+        }
+      )
+      .subscribe();
+
+    // Channel members (join/leave) — updates member list for current channel
+    const membersSub = supabase
+      .channel(`channel-members-${channel.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "channel_members",
+          filter: `channel_id=eq.${channel.id}`,
+        },
+        async (payload) => {
+          const newMember = payload.new as { user_id: string; added_at: string };
+          // Fetch the profile for this new member
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("id, full_name, email, avatar_url, username")
+            .eq("id", newMember.user_id)
+            .single();
+          if (profile) {
+            setChannelMembersList((prev) => {
+              if (prev.some((m) => m.user_id === profile.id)) return prev;
+              return [...prev, {
+                id: payload.new.id,
+                user_id: profile.id,
+                added_at: newMember.added_at,
+                full_name: profile.full_name || "",
+                email: profile.email || "",
+                avatar_url: profile.avatar_url,
+                username: profile.username || "",
+              } as ChannelMemberData];
+            });
+          }
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "channel_members",
+          filter: `channel_id=eq.${channel.id}`,
+        },
+        (payload) => {
+          const old = payload.old as { id?: string; user_id?: string };
+          setChannelMembersList((prev) =>
+            prev.filter((m) => m.id !== old.id && m.user_id !== old.user_id)
+          );
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channelsSub);
+      supabase.removeChannel(membersSub);
+    };
+  }, [box.id, channel.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Send message ──
   const sendCounterRef = useRef(0);
+  const sendTimestamps = useRef<number[]>([]);
+  const MAX_MESSAGE_LENGTH = 4000;
+  const RATE_LIMIT = 5; // max messages per second
+
   async function handleSend() {
     const content = newMessage.trim();
     const hasAttachments = attachments.length > 0;
     if ((!content && !hasAttachments) || sending) return;
+
+    // Character limit
+    if (content.length > MAX_MESSAGE_LENGTH) {
+      return;
+    }
+
+    // Rate limit: max 5 messages per second
+    const now = Date.now();
+    sendTimestamps.current = sendTimestamps.current.filter((t) => now - t < 1000);
+    if (sendTimestamps.current.length >= RATE_LIMIT) {
+      return;
+    }
+    sendTimestamps.current.push(now);
+
+    // ── Slash command handling ──
+    const parsed = parseSlashCommand(content);
+    if (parsed && !hasAttachments) {
+      const result = executeCommand(parsed.command, parsed.args, user.fullName);
+      if (result) {
+        if (result.type === "status") {
+          // Set status via API, then insert system message
+          setSending(true);
+          setNewMessage("");
+          try {
+            await fetch("/api/profile/status", {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                status_text: result.statusText,
+                status_emoji: result.statusEmoji,
+                channel_id: channel.id,
+                sender_id: user.id,
+                sender_name: user.fullName,
+              }),
+            });
+          } finally {
+            setSending(false);
+            inputRef.current?.focus();
+          }
+          return;
+        }
+        if (result.type === "clear_status") {
+          setSending(true);
+          setNewMessage("");
+          try {
+            await fetch("/api/profile/status", { method: "DELETE" });
+          } finally {
+            setSending(false);
+            inputRef.current?.focus();
+          }
+          return;
+        }
+        if (result.type === "giphy") {
+          setSending(true);
+          setNewMessage("");
+          try {
+            const res = await fetch(`/api/giphy/search?q=${encodeURIComponent(result.giphyQuery || "random")}`);
+            if (res.ok) {
+              const gif = await res.json();
+              // Send gif URL as a message
+              const supabase = createClient();
+              const tempId = `temp-${Date.now()}-${++sendCounterRef.current}`;
+              setMessages((prev) => [
+                ...prev,
+                {
+                  id: tempId,
+                  content: gif.url,
+                  created_at: new Date().toISOString(),
+                  edited_at: null,
+                  sender_id: user.id,
+                  parent_message_id: null,
+                  reactions: [],
+                  sender: { id: user.id, full_name: user.fullName, email: user.email, avatar_url: user.avatarUrl },
+                },
+              ]);
+              const { error } = await supabase
+                .from("messages")
+                .insert({ channel_id: channel.id, sender_id: user.id, content: gif.url })
+                .select("id")
+                .single();
+              if (error) {
+                setMessages((prev) => prev.filter((m) => m.id !== tempId));
+              }
+            }
+          } finally {
+            setSending(false);
+            inputRef.current?.focus();
+          }
+          return;
+        }
+        if (result.type === "open_poll") {
+          setNewMessage("");
+          setCreatePollOpen(true);
+          return;
+        }
+        if (result.type === "message" && result.content) {
+          // Replace the message content with the command result
+          setNewMessage(result.content);
+          // Fall through to normal send with the replaced content
+          const savedMessage = result.content;
+          const replyMsg = replyingTo;
+          stopTyping();
+          setSending(true);
+          setNewMessage("");
+          setReplyingTo(null);
+          const fullContent = result.content;
+          setAttachments([]);
+          const supabase = createClient();
+          const tempId = `temp-${Date.now()}-${++sendCounterRef.current}`;
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: tempId,
+              content: fullContent,
+              created_at: new Date().toISOString(),
+              edited_at: null,
+              sender_id: user.id,
+              parent_message_id: replyMsg?.id ?? null,
+              reactions: [],
+              sender: { id: user.id, full_name: user.fullName, email: user.email, avatar_url: user.avatarUrl },
+            },
+          ]);
+          const { data: inserted, error } = await supabase
+            .from("messages")
+            .insert({ channel_id: channel.id, sender_id: user.id, content: fullContent, parent_message_id: replyMsg?.id ?? null })
+            .select("id")
+            .single();
+          if (error) {
+            setMessages((prev) => prev.filter((m) => m.id !== tempId));
+            setNewMessage(savedMessage);
+            setReplyingTo(replyMsg);
+          } else if (inserted) {
+            sendMessageNotifications(inserted.id, fullContent, replyMsg, liveMembers, user, channel, box);
+          }
+          setSending(false);
+          inputRef.current?.focus();
+          return;
+        }
+        // Command returned null content (e.g. /me with no args) — ignore
+        return;
+      }
+    }
 
     const savedMessage = newMessage; // Save for rollback
     const replyMsg = replyingTo;
@@ -824,7 +1098,7 @@ export function ChannelPageClient({
         inserted.id,
         fullContent,
         replyMsg,
-        members,
+        liveMembers,
         user,
         channel,
         box
@@ -865,6 +1139,14 @@ export function ChannelPageClient({
           m.id === msgId ? original : m
         )
       );
+    } else {
+      // Insert channel event for edit
+      await supabase.from("channel_events").insert({
+        channel_id: channel.id,
+        actor_id: user.id,
+        type: "message_edited",
+        metadata: { actor_name: user.fullName },
+      });
     }
   }
 
@@ -918,6 +1200,14 @@ export function ChannelPageClient({
         const copy = [...prev];
         copy.splice(originalIndex, 0, original);
         return copy;
+      });
+    } else {
+      // Insert channel event for delete
+      await supabase.from("channel_events").insert({
+        channel_id: channel.id,
+        actor_id: user.id,
+        type: "message_deleted",
+        metadata: { actor_name: user.fullName },
       });
     }
   }
@@ -989,7 +1279,7 @@ export function ChannelPageClient({
       // Send notification to channel members
       const msg = messages.find((m) => m.id === messageId);
       if (msg) {
-        const recipientIds = members
+        const recipientIds = liveMembers
           .map((m) => m.user_id)
           .filter((id) => id !== user.id);
         fetch("/api/notifications/send", {
@@ -1069,7 +1359,7 @@ export function ChannelPageClient({
   }, [topLevelMessages, channelEvents]);
 
   const mentionNames = Object.fromEntries(
-    members.map((m) => [m.username, m.full_name || m.email])
+    liveMembers.map((m) => [m.username, m.full_name || m.email])
   );
 
   const msgCallbacks: MessageCallbacks = {
@@ -1108,10 +1398,11 @@ export function ChannelPageClient({
         user={user}
         boxes={boxes}
         box={box}
-        channels={channels}
-        members={members}
+        channels={liveChannels}
+        members={liveMembers}
         currentUserId={user.id}
         activeChannelId={channel.short_id}
+        currentChannelId={channel.id}
         unreadCounts={unreadCounts}
         getStatus={getStatus}
         onCreateChannel={() => setCreateChannelOpen(true)}
@@ -1120,6 +1411,7 @@ export function ChannelPageClient({
         onJoinCall={() => handleStartCall()}
         activeCalls={activeCalls}
         dmLoading={dmLoading}
+        conversations={conversations}
       />
 
       {/* Chat area */}
@@ -1127,14 +1419,20 @@ export function ChannelPageClient({
         {/* Channel header */}
         <div className="flex h-12 shrink-0 items-center justify-between border-b border-[#1a1a1a] px-4">
           <div className="flex min-w-0 items-center gap-2">
-            {channel.is_private ? (
-              <Lock className="h-4 w-4 shrink-0 text-[#555]" />
-            ) : (
-              <Hash className="h-4 w-4 shrink-0 text-[#555]" />
-            )}
-            <h1 className="truncate text-[14px] font-semibold text-white">
-              {channel.name}
-            </h1>
+            <button
+              onClick={() => setChannelSettingsOpen(true)}
+              className="flex min-w-0 items-center gap-1.5 rounded-[6px] px-1.5 py-1 transition-colors hover:bg-[#1a1a1a]"
+            >
+              {channel.is_private ? (
+                <Lock className="h-4 w-4 shrink-0 text-[#555]" />
+              ) : (
+                <Hash className="h-4 w-4 shrink-0 text-[#555]" />
+              )}
+              <h1 className="truncate text-[14px] font-semibold text-white">
+                {channel.name}
+              </h1>
+              <ChevronDown className="h-3 w-3 shrink-0 text-[#555]" />
+            </button>
             {channel.description && (
               <>
                 <div className="mx-1 h-4 w-px shrink-0 bg-[#222]" />
@@ -1213,7 +1511,7 @@ export function ChannelPageClient({
             >
               <Users className="h-3.5 w-3.5" />
               <span className="text-[11px]">
-                {channel.is_private ? channelMembersList.length : members.length}
+                {channel.is_private ? channelMembersList.length : liveMembers.length}
               </span>
             </button>
             {channel.is_private && !isBoxAdmin && (
@@ -1358,6 +1656,33 @@ export function ChannelPageClient({
                         Call ended{duration && <span className="ml-1 text-[#555]">· {duration}</span>}
                       </>
                     );
+                  } else if (evt.type === "message_deleted") {
+                    icon = <Trash2 className="h-3.5 w-3.5 text-[#555]" />;
+                    text = (
+                      <>
+                        <span className="font-medium text-[#ccc]">{actorName}</span> deleted a message
+                      </>
+                    );
+                  } else if (evt.type === "message_edited") {
+                    icon = <Pencil className="h-3.5 w-3.5 text-[#555]" />;
+                    text = (
+                      <>
+                        <span className="font-medium text-[#ccc]">{actorName}</span> edited a message
+                      </>
+                    );
+                  } else if (evt.type === "poll_ended") {
+                    const pollQuestion = (evt.metadata.question as string) || "Poll";
+                    const totalPollVotes = (evt.metadata.total_votes as number) || 0;
+                    const winnerLabel = (evt.metadata.winner_label as string) || "";
+                    icon = <BarChart3 className="h-3.5 w-3.5 text-[#888]" />;
+                    text = (
+                      <>
+                        Poll ended: <span className="font-medium text-[#ccc]">&quot;{pollQuestion}&quot;</span>
+                        {totalPollVotes > 0 && winnerLabel && (
+                          <span className="ml-1 text-[#555]">· Winner: {winnerLabel} ({totalPollVotes} total votes)</span>
+                        )}
+                      </>
+                    );
                   } else {
                     icon = null;
                     text = <>{evt.type}</>;
@@ -1379,7 +1704,7 @@ export function ChannelPageClient({
                 // Legacy system messages (backward compat for old __system: messages)
                 const systemData = parseSystemMessage(msg.content);
                 if (systemData) {
-                  return <SystemMessage key={msg.id} data={systemData} />;
+                  return <SystemMessage key={msg.id} data={systemData} currentUserId={user.id} />;
                 }
 
                 // Find prev message (skip events) for grouping
@@ -1515,7 +1840,7 @@ export function ChannelPageClient({
                           return true;
                         })
                         .map((c) => {
-                          const member = members.find((m) => m.user_id === c.user_id);
+                          const member = liveMembers.find((m) => m.user_id === c.user_id);
                           return member?.full_name || member?.email || "Someone";
                         });
 
@@ -1587,7 +1912,45 @@ export function ChannelPageClient({
           onPaste={handlePaste}
           onFileUpload={handleFileUpload}
           onSend={handleSend}
-          members={members}
+          members={liveMembers}
+          onGifSelect={async (gif) => {
+            if (sending) return;
+            setSending(true);
+            const supabase = createClient();
+            const tempId = `temp-${Date.now()}-${++sendCounterRef.current}`;
+            const gifContent = gif.url;
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: tempId,
+                content: gifContent,
+                created_at: new Date().toISOString(),
+                edited_at: null,
+                sender_id: user.id,
+                parent_message_id: null,
+                reactions: [],
+                sender: { id: user.id, full_name: user.fullName, email: user.email, avatar_url: user.avatarUrl },
+              },
+            ]);
+            const { data: inserted, error } = await supabase
+              .from("messages")
+              .insert({ channel_id: channel.id, sender_id: user.id, content: gifContent })
+              .select("id")
+              .single();
+            if (error) {
+              setMessages((prev) => prev.filter((m) => m.id !== tempId));
+            } else if (inserted) {
+              await supabase.from("attachments").insert({
+                message_id: inserted.id,
+                file_url: gif.url,
+                file_name: gif.title || "giphy.gif",
+                file_type: "image/gif",
+                file_size: 0,
+              });
+            }
+            setSending(false);
+            inputRef.current?.focus();
+          }}
         />
       </div>
 
@@ -1597,6 +1960,19 @@ export function ChannelPageClient({
         onClose={() => setCreateChannelOpen(false)}
         boxId={box.id}
         boxShortId={box.short_id}
+      />
+      <ChannelSettingsModal
+        open={channelSettingsOpen}
+        onClose={() => setChannelSettingsOpen(false)}
+        channel={channel}
+        boxShortId={box.short_id}
+        currentUserId={user.id}
+        isBoxAdmin={isBoxAdmin}
+      />
+      <CreatePollModal
+        open={createPollOpen}
+        onClose={() => setCreatePollOpen(false)}
+        channelId={channel.id}
       />
       <InviteModal
         open={inviteOpen}
@@ -1635,7 +2011,7 @@ export function ChannelPageClient({
           onClose={() => setAddToChannelOpen(false)}
           channelId={channel.id}
           channelName={channel.name}
-          boxMembers={members}
+          boxMembers={liveMembers}
           channelMembers={channelMembersList}
           onMembersAdded={(newMembers) => {
             setChannelMembersList((prev) => [...prev, ...newMembers]);

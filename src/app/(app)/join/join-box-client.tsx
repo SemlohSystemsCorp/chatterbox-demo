@@ -5,9 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   Link as LinkIcon,
-  CheckCircle,
   AlertCircle,
-  ArrowRight,
   Hash,
   Users,
 } from "lucide-react";
@@ -51,7 +49,7 @@ interface InviteInfo {
   } | null;
 }
 
-type ViewState = "input" | "preview" | "success" | "error";
+type ViewState = "input" | "preview" | "error";
 
 function extractCode(input: string): string {
   const trimmed = input.trim();
@@ -82,11 +80,6 @@ export function JoinBoxClient({ user, boxes }: JoinBoxClientProps) {
   const [error, setError] = useState("");
   const [view, setView] = useState<ViewState>("input");
   const [invite, setInvite] = useState<InviteInfo | null>(null);
-  const [joinedBox, setJoinedBox] = useState<{
-    id: string;
-    short_id: string;
-    name: string;
-  } | null>(null);
 
   // Auto-lookup if ?code= is in URL
   useEffect(() => {
@@ -149,9 +142,13 @@ export function JoinBoxClient({ user, boxes }: JoinBoxClientProps) {
 
       if (!res.ok) {
         if (res.status === 409 && data.box) {
-          setJoinedBox(data.box);
-          setView("success");
-          setJoining(false);
+          // Already a member — go straight to the box
+          router.refresh();
+          router.push(
+            data.box.short_id
+              ? `/box/${data.box.short_id}`
+              : "/dashboard"
+          );
           return;
         }
         setError(data.error || "Could not join");
@@ -160,8 +157,14 @@ export function JoinBoxClient({ user, boxes }: JoinBoxClientProps) {
         return;
       }
 
-      setJoinedBox(data.box);
-      setView("success");
+      // Navigate directly to the box — refresh first so sidebar picks up the new membership
+      router.refresh();
+      router.push(
+        data.box?.short_id
+          ? `/box/${data.box.short_id}`
+          : "/dashboard"
+      );
+      return;
     } catch {
       setError("Something went wrong");
       setView("error");
@@ -282,7 +285,7 @@ export function JoinBoxClient({ user, boxes }: JoinBoxClientProps) {
                     {invite.boxes.name}
                   </div>
                   <div className="mt-0.5 text-[12px] text-[#444]">
-                    chatterbox.io/{invite.boxes.slug}
+                    getchatterbox.app/{invite.boxes.slug}
                   </div>
                 </div>
 
@@ -326,51 +329,6 @@ export function JoinBoxClient({ user, boxes }: JoinBoxClientProps) {
             </>
           )}
 
-          {/* Success View */}
-          {view === "success" && joinedBox && (
-            <div className="text-center">
-              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#0f2a1a]">
-                <CheckCircle className="h-7 w-7 text-[#22c55e]" />
-              </div>
-              <h2 className="text-[24px] font-bold tracking-tight text-white">
-                You&apos;re in!
-              </h2>
-              <p className="mt-1 text-[14px] text-[#666]">
-                You&apos;ve joined{" "}
-                <span className="font-medium text-white">
-                  {joinedBox.name}
-                </span>
-                .
-              </p>
-
-              <div className="mt-8 space-y-3">
-                <Button
-                  onClick={() => {
-                    router.push(
-                      joinedBox.short_id
-                        ? `/box/${joinedBox.short_id}`
-                        : "/dashboard"
-                    );
-                    router.refresh();
-                  }}
-                  className="w-full"
-                >
-                  Open {joinedBox.name}
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    router.push("/dashboard");
-                    router.refresh();
-                  }}
-                  className="w-full"
-                >
-                  Go to Dashboard
-                </Button>
-              </div>
-            </div>
-          )}
 
           {/* Error View */}
           {view === "error" && (

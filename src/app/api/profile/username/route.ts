@@ -46,6 +46,10 @@ export async function PATCH(request: Request) {
     .eq("id", user.id);
 
   if (error) {
+    // Handle unique constraint violation (race condition: someone took it between check and update)
+    if (error.code === "23505") {
+      return NextResponse.json({ error: "Username is already taken" }, { status: 409 });
+    }
     return NextResponse.json({ error: "Failed to update username" }, { status: 500 });
   }
 

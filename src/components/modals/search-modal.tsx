@@ -37,6 +37,52 @@ interface SearchModalProps {
 
 type Mode = "search" | "ask";
 
+interface ParsedQuery {
+  text: string;
+  from: string | null;
+  in: string | null;
+  before: string | null;
+  has: string | null;
+}
+
+function parseSearchQuery(raw: string): ParsedQuery {
+  let text = raw;
+  let from: string | null = null;
+  let inCh: string | null = null;
+  let before: string | null = null;
+  let has: string | null = null;
+
+  // Extract from:username
+  const fromMatch = text.match(/\bfrom:(\S+)/i);
+  if (fromMatch) {
+    from = fromMatch[1];
+    text = text.replace(fromMatch[0], "");
+  }
+
+  // Extract in:channel
+  const inMatch = text.match(/\bin:(\S+)/i);
+  if (inMatch) {
+    inCh = inMatch[1];
+    text = text.replace(inMatch[0], "");
+  }
+
+  // Extract before:date
+  const beforeMatch = text.match(/\bbefore:(\S+)/i);
+  if (beforeMatch) {
+    before = beforeMatch[1];
+    text = text.replace(beforeMatch[0], "");
+  }
+
+  // Extract has:link/image/file
+  const hasMatch = text.match(/\bhas:(\S+)/i);
+  if (hasMatch) {
+    has = hasMatch[1];
+    text = text.replace(hasMatch[0], "");
+  }
+
+  return { text: text.trim(), from, in: inCh, before, has };
+}
+
 function highlightMatch(text: string, query: string) {
   if (!query.trim()) return text;
   const words = query.trim().split(/\s+/).filter(Boolean);
@@ -80,6 +126,9 @@ export function SearchModal({ open, onClose, boxShortId, boxId }: SearchModalPro
   const [aiSources, setAiSources] = useState<AskSource[]>([]);
   const [aiLoading, setAiLoading] = useState(false);
 
+  // Active filters parsed from query
+  const [activeFilters, setActiveFilters] = useState<ParsedQuery>({ text: "", from: null, in: null, before: null, has: null });
+
   // Focus input on open
   useEffect(() => {
     if (open) {
@@ -89,6 +138,7 @@ export function SearchModal({ open, onClose, boxShortId, boxId }: SearchModalPro
       setAiAnswer("");
       setAiSources([]);
       setMode("search");
+      setActiveFilters({ text: "", from: null, in: null, before: null, has: null });
       setTimeout(() => inputRef.current?.focus(), 50);
     }
   }, [open]);
@@ -107,15 +157,26 @@ export function SearchModal({ open, onClose, boxShortId, boxId }: SearchModalPro
   const doSearch = useCallback(
     (q: string) => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
-      if (q.trim().length < 2) {
+
+      const parsed = parseSearchQuery(q);
+      setActiveFilters(parsed);
+
+      if (parsed.text.length < 2 && !parsed.from && !parsed.in && !parsed.has) {
         setResults([]);
         setLoading(false);
         return;
       }
       setLoading(true);
       debounceRef.current = setTimeout(async () => {
-        const params = new URLSearchParams({ q });
+        const params = new URLSearchParams();
+        if (parsed.text) params.set("q", parsed.text);
+        else params.set("q", q.replace(/\b(from|in|before|has):\S+/gi, "").trim() || "*");
         if (boxId) params.set("box_id", boxId);
+        if (parsed.from) params.set("from", parsed.from);
+        if (parsed.in) params.set("in", parsed.in);
+        if (parsed.before) params.set("before", parsed.before);
+        if (parsed.has) params.set("has", parsed.has);
+
         const res = await fetch(`/api/messages/search?${params}`);
         const data = await res.json();
         setResults(data.results ?? []);
@@ -199,7 +260,18 @@ export function SearchModal({ open, onClose, boxShortId, boxId }: SearchModalPro
     setTimeout(() => inputRef.current?.focus(), 50);
   }
 
+  function insertFilter(filter: string) {
+    const val = query + (query && !query.endsWith(" ") ? " " : "") + filter;
+    setQuery(val);
+    inputRef.current?.focus();
+    if (mode === "search") {
+      doSearch(val);
+    }
+  }
+
   if (!open) return null;
+
+  const hasActiveFilters = activeFilters.from || activeFilters.in || activeFilters.before || activeFilters.has;
 
   return (
     <div
@@ -249,7 +321,7 @@ export function SearchModal({ open, onClose, boxShortId, boxId }: SearchModalPro
             onKeyDown={handleKeyDown}
             placeholder={
               mode === "search"
-                ? "Search messages..."
+                ? "Search messages... (try from:name in:channel before:date has:link)"
                 : "Ask a question about your conversations..."
             }
             className="flex-1 bg-transparent text-[14px] text-white placeholder:text-[#555] focus:outline-none"
@@ -261,6 +333,7 @@ export function SearchModal({ open, onClose, boxShortId, boxId }: SearchModalPro
                 setResults([]);
                 setAiAnswer("");
                 setAiSources([]);
+                setActiveFilters({ text: "", from: null, in: null, before: null, has: null });
                 inputRef.current?.focus();
               }}
               className="flex h-5 w-5 items-center justify-center rounded text-[#555] hover:text-white"
@@ -280,6 +353,32 @@ export function SearchModal({ open, onClose, boxShortId, boxId }: SearchModalPro
           <kbd className="rounded bg-[#0a0a0a] px-1.5 py-0.5 text-[10px] text-[#444]">ESC</kbd>
         </div>
 
+        {/* Active filter pills */}
+        {mode === "search" && hasActiveFilters && (
+          <div className="flex flex-wrap gap-1.5 border-b border-[#1a1a1a] px-4 py-2">
+            {activeFilters.from && (
+              <span className="rounded-full bg-[#276ef1]/15 px-2 py-0.5 text-[11px] text-[#276ef1]">
+                from:{activeFilters.from}
+              </span>
+            )}
+            {activeFilters.in && (
+              <span className="rounded-full bg-[#22c55e]/15 px-2 py-0.5 text-[11px] text-[#22c55e]">
+                in:{activeFilters.in}
+              </span>
+            )}
+            {activeFilters.before && (
+              <span className="rounded-full bg-[#f59e0b]/15 px-2 py-0.5 text-[11px] text-[#f59e0b]">
+                before:{activeFilters.before}
+              </span>
+            )}
+            {activeFilters.has && (
+              <span className="rounded-full bg-[#a855f7]/15 px-2 py-0.5 text-[11px] text-[#a855f7]">
+                has:{activeFilters.has}
+              </span>
+            )}
+          </div>
+        )}
+
         {/* Content area */}
         <div className="max-h-[400px] overflow-auto">
           {/* ── Search mode ── */}
@@ -297,9 +396,27 @@ export function SearchModal({ open, onClose, boxShortId, boxId }: SearchModalPro
                 </div>
               )}
 
-              {query.trim().length < 2 && (
-                <div className="px-4 py-8 text-center text-[13px] text-[#555]">
-                  Type at least 2 characters to search
+              {query.trim().length < 2 && !hasActiveFilters && (
+                <div className="px-4 py-6 text-center">
+                  <p className="text-[13px] text-[#555]">
+                    Type at least 2 characters to search
+                  </p>
+                  <div className="mt-4 flex flex-wrap justify-center gap-2">
+                    {[
+                      { label: "from:", example: "from:john" },
+                      { label: "in:", example: "in:general" },
+                      { label: "before:", example: "before:2025-01-01" },
+                      { label: "has:link", example: "has:link" },
+                    ].map((f) => (
+                      <button
+                        key={f.label}
+                        onClick={() => insertFilter(f.example)}
+                        className="rounded-full border border-[#1a1a1a] px-2.5 py-1 text-[11px] text-[#555] transition-colors hover:border-[#333] hover:text-[#888]"
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -359,7 +476,7 @@ export function SearchModal({ open, onClose, boxShortId, boxId }: SearchModalPro
                         )}
                       </div>
                       <p className="mt-0.5 truncate text-[13px] leading-[20px] text-[#888]">
-                        {highlightMatch(truncateAround(result.content, query), query)}
+                        {highlightMatch(truncateAround(result.content, activeFilters.text || query), activeFilters.text || query)}
                       </p>
                     </div>
                   </button>

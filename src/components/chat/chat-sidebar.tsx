@@ -11,6 +11,7 @@ import {
   Circle,
   MessageSquare,
   Phone,
+  Bookmark,
 } from "lucide-react";
 import { BoxSwitcher } from "@/components/chat/box-switcher";
 import { UserPopover } from "@/components/chat/user-popover";
@@ -32,6 +33,14 @@ export interface SidebarCall {
   starter_name?: string;
 }
 
+export interface SidebarConversation {
+  id: string;
+  short_id: string;
+  is_group: boolean;
+  name: string | null;
+  participants: { user_id: string; full_name: string; email: string; avatar_url: string | null }[];
+}
+
 interface ChatSidebarProps {
   user: UserData;
   boxes: BoxData[];
@@ -51,6 +60,12 @@ interface ChatSidebarProps {
   onInvite: () => void;
   onJoinCall?: (call: SidebarCall) => void;
   dmLoading?: string | null;
+  /** Full UUID of the active channel (for status system messages) */
+  currentChannelId?: string;
+  /** Whether the user is currently in their self-DM */
+  isSelfDm?: boolean;
+  /** DM conversations to display in sidebar */
+  conversations?: SidebarConversation[];
 }
 
 export function ChatSidebar({
@@ -70,6 +85,9 @@ export function ChatSidebar({
   onInvite,
   onJoinCall,
   dmLoading,
+  currentChannelId,
+  isSelfDm,
+  conversations,
 }: ChatSidebarProps) {
   const router = useRouter();
   const isAdmin = box?.role === "owner" || box?.role === "admin";
@@ -140,7 +158,7 @@ export function ChatSidebar({
     <div className="flex w-[240px] shrink-0 flex-col border-r border-[#1a1a1a] bg-[#0a0a0a]">
       {/* Box header */}
       {box ? (
-        <BoxSwitcher boxes={boxes} currentBox={box} />
+        <BoxSwitcher boxes={boxes} currentBox={box} memberCount={members.length} onInvite={onInvite} />
       ) : (
         <div className="flex h-14 items-center gap-2 border-b border-[#1a1a1a] px-4">
           <Link href="/dashboard" className="flex items-center gap-2">
@@ -249,6 +267,22 @@ export function ChatSidebar({
           </span>
         </div>
         <div className="space-y-0.5">
+          {/* Saved Messages (self-DM) */}
+          <button
+            onClick={() => onStartDm(currentUserId)}
+            disabled={dmLoading === currentUserId}
+            className={`flex w-full items-center gap-2 rounded-[6px] px-2 py-1.5 text-[13px] transition-colors disabled:opacity-50 ${
+              isSelfDm
+                ? "bg-[#1a1a1a] font-medium text-white"
+                : "text-[#666] hover:bg-[#111] hover:text-[#aaa]"
+            }`}
+          >
+            <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#1a1a1a]">
+              <Bookmark className="h-3 w-3 text-[#888]" />
+            </div>
+            <span className="truncate">Saved Messages</span>
+          </button>
+
           {/* Sherlock AI */}
           {box && (
             <Link
@@ -265,55 +299,116 @@ export function ChatSidebar({
             </Link>
           )}
 
-          {/* Workspace members */}
-          {otherMembers.map((m) => {
-            const initials = m.full_name
-              ? m.full_name
-                  .split(" ")
-                  .map((n) => n[0])
-                  .join("")
-                  .toUpperCase()
-                  .slice(0, 2)
-              : m.email[0].toUpperCase();
-            const isCurrentDm = m.user_id === activeDmUserId;
-            const liveStatus = getStatus(m.user_id);
-            const statusColor =
-              liveStatus === "online"
-                ? "bg-[#22c55e]"
-                : liveStatus === "away"
-                  ? "bg-[#f59e0b]"
-                  : "bg-[#555]";
-            return (
-              <button
-                key={m.user_id}
-                onClick={() => onStartDm(m.user_id)}
-                disabled={dmLoading === m.user_id}
-                className={`flex w-full items-center gap-2 rounded-[6px] px-2 py-1.5 text-[13px] transition-colors disabled:opacity-50 ${
-                  isCurrentDm
-                    ? "bg-[#1a1a1a] font-medium text-white"
-                    : "text-[#666] hover:bg-[#111] hover:text-[#aaa]"
-                }`}
-              >
-                <div className="relative h-5 w-5 shrink-0">
-                  {m.avatar_url ? (
-                    <img
-                      src={m.avatar_url}
-                      alt=""
-                      className="h-5 w-5 rounded-full"
-                    />
-                  ) : (
-                    <div className="flex h-5 w-5 items-center justify-center rounded-full bg-[#1a1a1a] text-[8px] font-bold text-white">
-                      {initials}
+          {/* DM Conversations */}
+          {conversations && conversations.length > 0
+            ? conversations
+                .filter((c) => {
+                  // Filter out self-DM (already shown as Saved Messages)
+                  const others = c.participants.filter((p) => p.user_id !== currentUserId);
+                  return others.length > 0;
+                })
+                .map((c) => {
+                  const others = c.participants.filter((p) => p.user_id !== currentUserId);
+                  const displayName = c.name || others.map((p) => p.full_name || p.email).join(", ");
+                  const firstOther = others[0];
+                  const isActive = firstOther && firstOther.user_id === activeDmUserId;
+                  const liveStatus = firstOther ? getStatus(firstOther.user_id) : "offline";
+                  const statusColor =
+                    liveStatus === "online"
+                      ? "bg-[#22c55e]"
+                      : liveStatus === "away"
+                        ? "bg-[#f59e0b]"
+                        : "bg-[#555]";
+                  const initials = firstOther
+                    ? firstOther.full_name
+                      ? firstOther.full_name
+                          .split(" ")
+                          .map((n) => n[0])
+                          .join("")
+                          .toUpperCase()
+                          .slice(0, 2)
+                      : firstOther.email[0].toUpperCase()
+                    : "?";
+
+                  return (
+                    <Link
+                      key={c.id}
+                      href={`/dm/${c.short_id}${box ? `?box=${box.short_id}` : ""}`}
+                      className={`flex w-full items-center gap-2 rounded-[6px] px-2 py-1.5 text-[13px] transition-colors ${
+                        isActive
+                          ? "bg-[#1a1a1a] font-medium text-white"
+                          : "text-[#666] hover:bg-[#111] hover:text-[#aaa]"
+                      }`}
+                    >
+                      <div className="relative h-5 w-5 shrink-0">
+                        {firstOther?.avatar_url ? (
+                          <img
+                            src={firstOther.avatar_url}
+                            alt=""
+                            className="h-5 w-5 rounded-full"
+                          />
+                        ) : (
+                          <div className="flex h-5 w-5 items-center justify-center rounded-full bg-[#1a1a1a] text-[8px] font-bold text-white">
+                            {initials}
+                          </div>
+                        )}
+                        <Circle
+                          className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ${statusColor} fill-current stroke-[#0a0a0a] stroke-[3]`}
+                        />
+                      </div>
+                      <span className="truncate">{displayName}</span>
+                    </Link>
+                  );
+                })
+            : otherMembers.map((m) => {
+                const initials = m.full_name
+                  ? m.full_name
+                      .split(" ")
+                      .map((n) => n[0])
+                      .join("")
+                      .toUpperCase()
+                      .slice(0, 2)
+                  : m.email[0].toUpperCase();
+                const isCurrentDm = m.user_id === activeDmUserId;
+                const liveStatus = getStatus(m.user_id);
+                const statusColor =
+                  liveStatus === "online"
+                    ? "bg-[#22c55e]"
+                    : liveStatus === "away"
+                      ? "bg-[#f59e0b]"
+                      : "bg-[#555]";
+
+                return (
+                  <button
+                    key={m.user_id}
+                    onClick={() => onStartDm(m.user_id)}
+                    disabled={dmLoading === m.user_id}
+                    className={`flex w-full items-center gap-2 rounded-[6px] px-2 py-1.5 text-[13px] transition-colors disabled:opacity-50 ${
+                      isCurrentDm
+                        ? "bg-[#1a1a1a] font-medium text-white"
+                        : "text-[#666] hover:bg-[#111] hover:text-[#aaa]"
+                    }`}
+                  >
+                    <div className="relative h-5 w-5 shrink-0">
+                      {m.avatar_url ? (
+                        <img
+                          src={m.avatar_url}
+                          alt=""
+                          className="h-5 w-5 rounded-full"
+                        />
+                      ) : (
+                        <div className="flex h-5 w-5 items-center justify-center rounded-full bg-[#1a1a1a] text-[8px] font-bold text-white">
+                          {initials}
+                        </div>
+                      )}
+                      <Circle
+                        className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ${statusColor} fill-current stroke-[#0a0a0a] stroke-[3]`}
+                      />
                     </div>
-                  )}
-                  <Circle
-                    className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ${statusColor} fill-current stroke-[#0a0a0a] stroke-[3]`}
-                  />
-                </div>
-                <span className="truncate">{m.full_name || m.email}</span>
-              </button>
-            );
-          })}
+                    <span className="truncate">{m.full_name || m.email}</span>
+                  </button>
+                );
+              })}
         </div>
       </div>
 
@@ -325,6 +420,7 @@ export function ChatSidebar({
         boxId={box?.id}
         boxName={box?.name}
         boxRole={box?.role}
+        currentChannelId={currentChannelId}
       />
     </div>
   );

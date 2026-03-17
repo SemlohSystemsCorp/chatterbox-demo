@@ -7,12 +7,15 @@ import {
   MessageSquare,
   Search,
   Phone,
+  Bookmark,
+  ListTodo,
+  User,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { CreateChannelModal } from "@/components/modals/create-channel-modal";
 import { InviteModal } from "@/components/modals/invite-modal";
 import { SearchModal } from "@/components/modals/search-modal";
-import { ChatSidebar, type SidebarCall } from "@/components/chat/chat-sidebar";
+import { ChatSidebar, type SidebarCall, type SidebarConversation } from "@/components/chat/chat-sidebar";
 import { MessageComposer } from "@/components/chat/message-composer";
 import {
   MessageContent,
@@ -26,7 +29,11 @@ import {
 } from "@/components/chat/message-components";
 import { createClient } from "@/lib/supabase/client";
 import { showPushNotification } from "@/lib/notifications";
+import { parseSlashCommand, executeCommand } from "@/lib/slash-commands";
+import { CreatePollModal } from "@/components/modals/create-poll-modal";
 import { MemberProfileCard } from "@/components/chat/member-profile-card";
+import { TodosPanel } from "@/components/saved-messages/todos-panel";
+import { ProfilePanel } from "@/components/saved-messages/profile-panel";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { usePresence } from "@/hooks/use-presence";
 import { useTyping } from "@/hooks/use-typing";
@@ -83,6 +90,7 @@ interface DmPageClientProps {
   channels: SidebarChannel[];
   members: MemberData[];
   conversation: ConversationData;
+  conversations: SidebarConversation[];
   initialMessages: MessageData[];
   initialReadCursors: ReadCursor[];
   activeCall?: ActiveCallData | null;
@@ -108,6 +116,7 @@ export function DmPageClient({
   channels,
   members,
   conversation,
+  conversations,
   initialMessages,
   initialReadCursors,
   activeCall,
@@ -115,6 +124,8 @@ export function DmPageClient({
 }: DmPageClientProps) {
   const router = useRouter();
   const [messages, setMessages] = useState<MessageData[]>(initialMessages);
+  const [liveChannels, setLiveChannels] = useState<SidebarChannel[]>(channels);
+  const [liveMembers, setLiveMembers] = useState<MemberData[]>(members);
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -142,6 +153,7 @@ export function DmPageClient({
   const [createChannelOpen, setCreateChannelOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [createPollOpen, setCreatePollOpen] = useState(false);
   const [translatedMessages, setTranslatedMessages] = useState<Record<string, string>>({});
   const [translatingId, setTranslatingId] = useState<string | null>(null);
 
@@ -159,6 +171,10 @@ export function DmPageClient({
     (p) => p.user_id !== user.id
   );
   const displayName = getConversationName(conversation, user.id);
+
+  // Self-DM
+  const isSelfDm = otherParticipants.length === 0;
+  const [selfDmTab, setSelfDmTab] = useState<"messages" | "todos" | "profile">("messages");
 
   // ── Presence & typing ──
   const presenceRoom = box ? `box-${box.id}` : `dm-${conversation.id}`;
@@ -572,12 +588,205 @@ export function DmPageClient({
     };
   }, [conversation.id]);
 
+  // ── Realtime: channels (sidebar updates) ──
+  useEffect(() => {
+    if (!box) return;
+    const supabase = createClient();
+
+    const channelsSub = supabase
+      .channel(`box-channels-${box.id}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "channels", filter: `box_id=eq.${box.id}` },
+        (payload) => {
+          const ch = payload.new as SidebarChannel;
+          setLiveChannels((prev) => {
+            if (prev.some((c) => c.id === ch.id)) return prev;
+            return [...prev, ch];
+          });
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "channels", filter: `box_id=eq.${box.id}` },
+        (payload) => {
+          const ch = payload.new as SidebarChannel;
+          setLiveChannels((prev) =>
+            prev.map((c) => (c.id === ch.id ? { ...c, name: ch.name, description: ch.description, is_private: ch.is_private, is_archived: ch.is_archived } : c))
+          );
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "channels", filter: `box_id=eq.${box.id}` },
+        (payload) => {
+          const old = payload.old as { id: string };
+          setLiveChannels((prev) => prev.filter((c) => c.id !== old.id));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channelsSub);
+    };
+  }, [box?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Send ──
   const sendCounterRef = useRef(0);
+  const sendTimestamps = useRef<number[]>([]);
+  const MAX_MESSAGE_LENGTH = 4000;
+  const RATE_LIMIT = 5;
+
   async function handleSend() {
     const content = newMessage.trim();
     const hasAttachments = attachments.length > 0;
     if ((!content && !hasAttachments) || sending) return;
+
+    if (content.length > MAX_MESSAGE_LENGTH) {
+      return;
+    }
+
+    const now = Date.now();
+    sendTimestamps.current = sendTimestamps.current.filter((t) => now - t < 1000);
+    if (sendTimestamps.current.length >= RATE_LIMIT) {
+      return;
+    }
+    sendTimestamps.current.push(now);
+
+    // ── Slash command handling ──
+    const parsed = parseSlashCommand(content);
+    if (parsed && !hasAttachments) {
+      const result = executeCommand(parsed.command, parsed.args, user.fullName);
+      if (result) {
+        if (result.type === "status") {
+          setSending(true);
+          setNewMessage("");
+          try {
+            await fetch("/api/profile/status", {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                status_text: result.statusText,
+                status_emoji: result.statusEmoji,
+              }),
+            });
+          } finally {
+            setSending(false);
+            inputRef.current?.focus();
+          }
+          return;
+        }
+        if (result.type === "clear_status") {
+          setSending(true);
+          setNewMessage("");
+          try {
+            await fetch("/api/profile/status", { method: "DELETE" });
+          } finally {
+            setSending(false);
+            inputRef.current?.focus();
+          }
+          return;
+        }
+        if (result.type === "giphy") {
+          setSending(true);
+          setNewMessage("");
+          try {
+            const res = await fetch(`/api/giphy/search?q=${encodeURIComponent(result.giphyQuery || "random")}`);
+            if (res.ok) {
+              const gif = await res.json();
+              const supabase = createClient();
+              const tempId = `temp-${Date.now()}-${++sendCounterRef.current}`;
+              setMessages((prev) => [
+                ...prev,
+                {
+                  id: tempId,
+                  content: gif.url,
+                  created_at: new Date().toISOString(),
+                  edited_at: null,
+                  sender_id: user.id,
+                  parent_message_id: null,
+                  reactions: [],
+                  sender: { id: user.id, full_name: user.fullName, email: user.email, avatar_url: user.avatarUrl },
+                },
+              ]);
+              const { error } = await supabase
+                .from("messages")
+                .insert({ conversation_id: conversation.id, sender_id: user.id, content: gif.url })
+                .select("id")
+                .single();
+              if (error) {
+                setMessages((prev) => prev.filter((m) => m.id !== tempId));
+              }
+            }
+          } finally {
+            setSending(false);
+            inputRef.current?.focus();
+          }
+          return;
+        }
+        if (result.type === "open_poll") {
+          setNewMessage("");
+          setCreatePollOpen(true);
+          return;
+        }
+        if (result.type === "message" && result.content) {
+          const savedMessage = result.content;
+          const replyMsg = replyingTo;
+          stopTyping();
+          setSending(true);
+          setNewMessage("");
+          setReplyingTo(null);
+          const fullContent = result.content;
+          setAttachments([]);
+          const supabase = createClient();
+          const tempId = `temp-${Date.now()}-${++sendCounterRef.current}`;
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: tempId,
+              content: fullContent,
+              created_at: new Date().toISOString(),
+              edited_at: null,
+              sender_id: user.id,
+              parent_message_id: replyMsg?.id ?? null,
+              reactions: [],
+              sender: { id: user.id, full_name: user.fullName, email: user.email, avatar_url: user.avatarUrl },
+            },
+          ]);
+          const { data: inserted, error } = await supabase
+            .from("messages")
+            .insert({ conversation_id: conversation.id, sender_id: user.id, content: fullContent, parent_message_id: replyMsg?.id ?? null })
+            .select("id")
+            .single();
+          if (error) {
+            setMessages((prev) => prev.filter((m) => m.id !== tempId));
+            setNewMessage(savedMessage);
+            setReplyingTo(replyMsg);
+          } else if (inserted) {
+            const recipientIds = conversation.participants.map((p) => p.user_id).filter((id) => id !== user.id);
+            if (recipientIds.length > 0) {
+              const convoName = getConversationName(conversation, user.id);
+              fetch("/api/notifications/send", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  user_ids: recipientIds,
+                  type: "dm",
+                  title: `${user.fullName} sent you a message`,
+                  body: fullContent.slice(0, 200),
+                  conversation_id: conversation.id,
+                  message_id: inserted.id,
+                }),
+              }).catch(() => {});
+            }
+          }
+          setSending(false);
+          inputRef.current?.focus();
+          return;
+        }
+        return;
+      }
+    }
 
     const savedMessage = newMessage; // Save for rollback
     const replyMsg = replyingTo;
@@ -863,8 +1072,8 @@ export function DmPageClient({
         user={user}
         boxes={boxes}
         box={box}
-        channels={channels}
-        members={members}
+        channels={liveChannels}
+        members={liveMembers}
         currentUserId={user.id}
         activeDmUserId={otherParticipants.length === 1 ? otherParticipants[0].user_id : undefined}
         getStatus={getStatus}
@@ -873,56 +1082,90 @@ export function DmPageClient({
         onInvite={() => setInviteOpen(true)}
         activeCalls={activeCalls}
         dmLoading={dmLoading}
+        isSelfDm={otherParticipants.length === 0}
+        conversations={conversations}
       />
 
       {/* Chat area */}
       <div className="flex flex-1 flex-col">
         {/* Header */}
-        <div className="flex h-12 shrink-0 items-center gap-3 border-b border-[#1a1a1a] px-4">
-          {otherParticipants.length === 1 && otherParticipants[0].avatar_url ? (
-            <img
-              src={otherParticipants[0].avatar_url}
-              alt=""
-              className="h-7 w-7 rounded-full"
-            />
-          ) : (
-            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#1a1a1a] text-[10px] font-bold text-white">
-              {otherParticipants[0]
-                ? getInitials(
-                    otherParticipants[0].full_name,
-                    otherParticipants[0].email
-                  )
-                : "?"}
+        <div className="shrink-0 border-b border-[#1a1a1a]">
+          <div className="flex h-12 items-center gap-3 px-4">
+            {isSelfDm ? (
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#1a1a1a]">
+                <Bookmark className="h-3.5 w-3.5 text-[#888]" />
+              </div>
+            ) : otherParticipants.length === 1 && otherParticipants[0].avatar_url ? (
+              <img
+                src={otherParticipants[0].avatar_url}
+                alt=""
+                className="h-7 w-7 rounded-full"
+              />
+            ) : (
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#1a1a1a] text-[10px] font-bold text-white">
+                {otherParticipants[0]
+                  ? getInitials(
+                      otherParticipants[0].full_name,
+                      otherParticipants[0].email
+                    )
+                  : "?"}
+              </div>
+            )}
+            <h1 className="flex-1 text-[14px] font-semibold text-white">
+              {displayName}
+            </h1>
+            <div className="flex items-center gap-0.5">
+              {!isSelfDm && (
+                <button
+                  onClick={handleStartCall}
+                  disabled={startingCall}
+                  className="flex h-7 w-7 items-center justify-center rounded-[6px] text-[#555] transition-colors hover:bg-[#1a1a1a] hover:text-white disabled:opacity-50"
+                  title="Start a call"
+                >
+                  <Phone className="h-3.5 w-3.5" />
+                </button>
+              )}
+              <button
+                onClick={() => setSearchOpen(true)}
+                className="flex h-7 items-center gap-1.5 rounded-[6px] px-2 text-[12px] text-[#555] transition-colors hover:bg-[#1a1a1a] hover:text-white"
+                title="Search messages"
+              >
+                <Search className="h-3.5 w-3.5" />
+                <kbd className="hidden rounded bg-[#0a0a0a] px-1 py-0.5 text-[10px] text-[#444] sm:inline">
+                  ⌘K
+                </kbd>
+              </button>
+              <NotificationBell userId={user.id} />
+            </div>
+          </div>
+
+          {/* Self-DM tabs */}
+          {isSelfDm && (
+            <div className="flex gap-0.5 px-3 pb-2">
+              {([
+                { key: "messages" as const, label: "Messages", icon: MessageSquare },
+                { key: "todos" as const, label: "Todos", icon: ListTodo },
+                { key: "profile" as const, label: "Profile", icon: User },
+              ]).map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setSelfDmTab(tab.key)}
+                  className={`flex items-center gap-1.5 rounded-[6px] px-2.5 py-1.5 text-[12px] transition-colors ${
+                    selfDmTab === tab.key
+                      ? "bg-[#1a1a1a] font-medium text-white"
+                      : "text-[#555] hover:bg-[#111] hover:text-[#888]"
+                  }`}
+                >
+                  <tab.icon className="h-3.5 w-3.5" />
+                  {tab.label}
+                </button>
+              ))}
             </div>
           )}
-          <h1 className="flex-1 text-[14px] font-semibold text-white">
-            {displayName}
-          </h1>
-          <div className="flex items-center gap-0.5">
-            <button
-              onClick={handleStartCall}
-              disabled={startingCall}
-              className="flex h-7 w-7 items-center justify-center rounded-[6px] text-[#555] transition-colors hover:bg-[#1a1a1a] hover:text-white disabled:opacity-50"
-              title="Start a call"
-            >
-              <Phone className="h-3.5 w-3.5" />
-            </button>
-            <button
-              onClick={() => setSearchOpen(true)}
-              className="flex h-7 items-center gap-1.5 rounded-[6px] px-2 text-[12px] text-[#555] transition-colors hover:bg-[#1a1a1a] hover:text-white"
-              title="Search messages"
-            >
-              <Search className="h-3.5 w-3.5" />
-              <kbd className="hidden rounded bg-[#0a0a0a] px-1 py-0.5 text-[10px] text-[#444] sm:inline">
-                ⌘K
-              </kbd>
-            </button>
-            <NotificationBell userId={user.id} />
-          </div>
         </div>
 
         {/* Active call banner */}
-        {activeCall && (
+        {activeCall && !isSelfDm && (
           <button
             onClick={handleStartCall}
             disabled={startingCall}
@@ -938,7 +1181,13 @@ export function DmPageClient({
           </button>
         )}
 
-        {/* Messages */}
+        {/* Self-DM Panels */}
+        {isSelfDm && selfDmTab === "todos" && <TodosPanel />}
+        {isSelfDm && selfDmTab === "profile" && <ProfilePanel user={user} />}
+
+        {/* Messages (show when not on a self-DM tab, or on messages tab) */}
+        {(!isSelfDm || selfDmTab === "messages") && (
+        <>
         <div ref={scrollContainerRef} className="relative flex-1 overflow-auto">
           <div className="px-4 py-4">
             {loadingMore && (
@@ -968,7 +1217,7 @@ export function DmPageClient({
                 // System messages (call events) get special rendering
                 const systemData = parseSystemMessage(msg.content);
                 if (systemData) {
-                  return <SystemMessage key={msg.id} data={systemData} />;
+                  return <SystemMessage key={msg.id} data={systemData} currentUserId={user.id} />;
                 }
 
                 const prev = i > 0 ? topLevelMessages[i - 1] : null;
@@ -1141,8 +1390,48 @@ export function DmPageClient({
           onPaste={handlePaste}
           onFileUpload={handleFileUpload}
           onSend={handleSend}
-          members={members}
+          members={liveMembers}
+          onGifSelect={async (gif) => {
+            if (sending) return;
+            setSending(true);
+            const supabase = createClient();
+            const tempId = `temp-${Date.now()}-${++sendCounterRef.current}`;
+            const gifContent = gif.url;
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: tempId,
+                content: gifContent,
+                created_at: new Date().toISOString(),
+                edited_at: null,
+                sender_id: user.id,
+                parent_message_id: null,
+                reactions: [],
+                sender: { id: user.id, full_name: user.fullName, email: user.email, avatar_url: user.avatarUrl },
+              },
+            ]);
+            const { data: inserted, error } = await supabase
+              .from("messages")
+              .insert({ conversation_id: conversation.id, sender_id: user.id, content: gifContent })
+              .select("id")
+              .single();
+            if (error) {
+              setMessages((prev) => prev.filter((m) => m.id !== tempId));
+            } else if (inserted) {
+              await supabase.from("attachments").insert({
+                message_id: inserted.id,
+                file_url: gif.url,
+                file_name: gif.title || "giphy.gif",
+                file_type: "image/gif",
+                file_size: 0,
+              });
+            }
+            setSending(false);
+            inputRef.current?.focus();
+          }}
         />
+        </>
+        )}
       </div>
 
       {/* Modals */}
@@ -1174,6 +1463,11 @@ export function DmPageClient({
         url={mediaPreview?.url ?? ""}
         type={mediaPreview?.type ?? "image"}
         fileName={mediaPreview?.fileName}
+      />
+      <CreatePollModal
+        open={createPollOpen}
+        onClose={() => setCreatePollOpen(false)}
+        conversationId={conversation.id}
       />
     </div>
   );

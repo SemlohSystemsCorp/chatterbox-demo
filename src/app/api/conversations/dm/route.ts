@@ -15,9 +15,11 @@ export async function POST(request: Request) {
 
   const { target_user_id } = await request.json();
 
-  if (!target_user_id || target_user_id === user.id) {
+  if (!target_user_id) {
     return NextResponse.json({ error: "Invalid target user" }, { status: 400 });
   }
+
+  const isSelfDm = target_user_id === user.id;
 
   // Use service role to bypass RLS for conversation creation
   // (SELECT policy requires being a participant, but we haven't added participants yet)
@@ -25,6 +27,54 @@ export async function POST(request: Request) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
+
+  if (isSelfDm) {
+    // Check if self-DM already exists (conversation with only this user)
+    const { data: myConvos } = await admin
+      .from("conversation_participants")
+      .select("conversation_id")
+      .eq("user_id", user.id);
+
+    if (myConvos && myConvos.length > 0) {
+      for (const c of myConvos) {
+        // Count participants in this conversation
+        const { count } = await admin
+          .from("conversation_participants")
+          .select("id", { count: "exact", head: true })
+          .eq("conversation_id", c.conversation_id);
+
+        if (count === 1) {
+          // This is a self-DM
+          const { data: convo } = await admin
+            .from("conversations")
+            .select("id, short_id")
+            .eq("id", c.conversation_id)
+            .eq("is_group", false)
+            .single();
+          if (convo) {
+            return NextResponse.json({ id: convo.id, short_id: convo.short_id });
+          }
+        }
+      }
+    }
+
+    // Create new self-DM
+    const { data: conversation, error: convoError } = await admin
+      .from("conversations")
+      .insert({ is_group: false })
+      .select("id, short_id")
+      .single();
+
+    if (convoError) {
+      return NextResponse.json({ error: convoError.message }, { status: 500 });
+    }
+
+    await admin
+      .from("conversation_participants")
+      .insert({ conversation_id: conversation.id, user_id: user.id });
+
+    return NextResponse.json({ id: conversation.id, short_id: conversation.short_id });
+  }
 
   // Check if a 1:1 conversation already exists between these two users
   const { data: myConvos } = await admin

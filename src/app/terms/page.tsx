@@ -189,10 +189,10 @@ export default function TermsPage() {
               <p>
                 If you have questions about these Terms, contact us at{" "}
                 <a
-                  href="mailto:legal@chatterbox.io"
+                  href="mailto:legal@getchatterbox.app"
                   className="text-white underline decoration-[#555] underline-offset-2 hover:decoration-white"
                 >
-                  legal@chatterbox.io
+                  legal@getchatterbox.app
                 </a>
                 .
               </p>

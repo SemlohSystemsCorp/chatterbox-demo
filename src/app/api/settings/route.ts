@@ -21,11 +21,11 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // Auto-create if missing
+  // Auto-create if missing (upsert to handle race conditions)
   if (!settings) {
     const { data: created, error: createError } = await supabase
       .from("user_settings")
-      .insert({ user_id: user.id })
+      .upsert({ user_id: user.id }, { onConflict: "user_id" })
       .select("*")
       .single();
 

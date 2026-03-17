@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
       settings?.email_notifications !== false &&
       recipient.email
     ) {
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://chatterbox.io";
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://getchatterbox.app";
       let link = appUrl;
       if (box_id && channel_id) {
         link = `${appUrl}/box/${box_id}`;

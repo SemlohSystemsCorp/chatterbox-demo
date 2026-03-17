@@ -21,6 +21,46 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Verify the user can access this message's channel or conversation
+  const { data: message } = await supabase
+    .from("messages")
+    .select("channel_id, conversation_id")
+    .eq("id", message_id)
+    .single();
+
+  if (!message) {
+    return NextResponse.json({ error: "Message not found" }, { status: 404 });
+  }
+
+  if (message.channel_id) {
+    const { data: ch } = await supabase
+      .from("channels")
+      .select("box_id")
+      .eq("id", message.channel_id)
+      .single();
+    if (ch) {
+      const { data: membership } = await supabase
+        .from("box_members")
+        .select("id")
+        .eq("box_id", ch.box_id)
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (!membership) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    }
+  } else if (message.conversation_id) {
+    const { data: participant } = await supabase
+      .from("conversation_participants")
+      .select("id")
+      .eq("conversation_id", message.conversation_id)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (!participant) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+  }
+
   // Check if reaction already exists (toggle off)
   const { data: existing } = await supabase
     .from("reactions")

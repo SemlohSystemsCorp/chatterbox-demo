@@ -50,12 +50,13 @@ export function extractUrls(text: string): string[] {
   const matches = text.match(/https?:\/\/[^\s<>\[\]"'`]+/gi) || [];
   const mediaExts = /\.(png|jpg|jpeg|gif|webp|svg|mp4|webm|mov|mp3|wav|ogg|m4a)(\?|$)/i;
   const storageUrl = /\/storage\/v1\/object\/public\/attachments\//;
+  const giphyUrl = /^https?:\/\/(media\d*\.|i\.)?giphy\.com\//i;
   return [
     ...new Set(
       matches
         .map((u) => u.replace(/[).,;:!?]+$/, ""))
         .filter((u) => {
-          if (mediaExts.test(u) || storageUrl.test(u)) return false;
+          if (mediaExts.test(u) || storageUrl.test(u) || giphyUrl.test(u)) return false;
           try { new URL(u); return true; } catch { return false; }
         })
     ),

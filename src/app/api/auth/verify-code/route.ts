@@ -58,10 +58,17 @@ export async function POST(request: Request) {
     }
 
     // Increment attempts
-    await supabaseAdmin
+    const { error: incrError } = await supabaseAdmin
       .from("verification_codes")
       .update({ attempts: record.attempts + 1 })
       .eq("id", record.id);
+
+    if (incrError) {
+      return NextResponse.json(
+        { error: "Verification failed. Please try again." },
+        { status: 500 }
+      );
+    }
 
     // Check code
     if (record.code !== code) {

@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Pin, X, Loader2 } from "lucide-react";
-import { Markdown } from "@/components/ui/markdown";
+import { Markdown, segmentContent } from "@/components/ui/markdown";
+import { getMediaType } from "@/components/modals/media-preview-modal";
 import { formatTime, formatDate, getInitials } from "@/lib/chat-helpers";
 import type { PinnedMessage } from "@/types";
 
@@ -111,9 +112,28 @@ export function PinnedMessagesPanel({
                         : ""}
                     </span>
                   </div>
-                  <Markdown className="mt-0.5 text-[12px] leading-[18px] text-[#999] line-clamp-3">
-                    {pin.message?.content ?? ""}
-                  </Markdown>
+                  <div className="mt-0.5">
+                    {segmentContent(pin.message?.content ?? "", getMediaType).map((seg, si) => {
+                      if (seg.type === "text") {
+                        return (
+                          <Markdown key={si} className="text-[12px] leading-[18px] text-[#999] line-clamp-3">
+                            {seg.content}
+                          </Markdown>
+                        );
+                      }
+                      if (seg.mediaType === "image") {
+                        return (
+                          <img
+                            key={si}
+                            src={seg.url}
+                            alt=""
+                            className="mt-1 max-h-[120px] max-w-[200px] rounded-[6px] border border-[#1a1a1a]"
+                          />
+                        );
+                      }
+                      return null;
+                    })}
+                  </div>
                 </div>
                 <button
                   onClick={() => handleUnpin(pin.message_id)}

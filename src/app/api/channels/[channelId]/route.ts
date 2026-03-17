@@ -15,10 +15,10 @@ export async function PATCH(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Get channel to find box_id
+  // Get channel to find box_id and creator
   const { data: channel } = await supabase
     .from("channels")
-    .select("id, box_id, name")
+    .select("id, box_id, name, created_by")
     .eq("id", channelId)
     .single();
 
@@ -26,7 +26,7 @@ export async function PATCH(
     return NextResponse.json({ error: "Channel not found" }, { status: 404 });
   }
 
-  // Verify admin/owner of the box
+  // Verify admin/owner of the box OR channel creator
   const { data: membership } = await supabase
     .from("box_members")
     .select("role")
@@ -34,7 +34,10 @@ export async function PATCH(
     .eq("user_id", user.id)
     .maybeSingle();
 
-  if (!membership || !["owner", "admin"].includes(membership.role)) {
+  const isBoxAdmin = membership && ["owner", "admin"].includes(membership.role);
+  const isCreator = channel.created_by === user.id;
+
+  if (!isBoxAdmin && !isCreator) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -108,10 +111,10 @@ export async function DELETE(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Get channel to find box_id
+  // Get channel to find box_id and creator
   const { data: channel } = await supabase
     .from("channels")
-    .select("id, box_id")
+    .select("id, box_id, name, created_by")
     .eq("id", channelId)
     .single();
 
@@ -119,7 +122,20 @@ export async function DELETE(
     return NextResponse.json({ error: "Channel not found" }, { status: 404 });
   }
 
-  // Verify admin/owner
+  // Prevent deleting the last channel in a box
+  const { count } = await supabase
+    .from("channels")
+    .select("id", { count: "exact", head: true })
+    .eq("box_id", channel.box_id);
+
+  if ((count ?? 0) <= 1) {
+    return NextResponse.json(
+      { error: "Cannot delete the last channel in a Box. Every Box must have at least one channel." },
+      { status: 400 },
+    );
+  }
+
+  // Verify admin/owner OR channel creator
   const { data: membership } = await supabase
     .from("box_members")
     .select("role")
@@ -127,7 +143,10 @@ export async function DELETE(
     .eq("user_id", user.id)
     .maybeSingle();
 
-  if (!membership || !["owner", "admin"].includes(membership.role)) {
+  const isBoxAdmin = membership && ["owner", "admin"].includes(membership.role);
+  const isCreator = channel.created_by === user.id;
+
+  if (!isBoxAdmin && !isCreator) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -137,5 +156,17 @@ export async function DELETE(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ success: true });
+  // Find the general channel (or first available channel) to redirect to
+  const { data: redirectChannel } = await supabase
+    .from("channels")
+    .select("short_id, name")
+    .eq("box_id", channel.box_id)
+    .order("name", { ascending: true })
+    .limit(1)
+    .single();
+
+  return NextResponse.json({
+    success: true,
+    redirect_channel_short_id: redirectChannel?.short_id ?? null,
+  });
 }

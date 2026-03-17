@@ -201,10 +201,10 @@ export default function PrivacyPage() {
               <p className="mt-3">
                 To exercise these rights, contact us at{" "}
                 <a
-                  href="mailto:privacy@chatterbox.io"
+                  href="mailto:privacy@getchatterbox.app"
                   className="text-white underline decoration-[#555] underline-offset-2 hover:decoration-white"
                 >
-                  privacy@chatterbox.io
+                  privacy@getchatterbox.app
                 </a>
                 . We will respond within 30 days.
               </p>
@@ -255,10 +255,10 @@ export default function PrivacyPage() {
                 If you have questions or concerns about this Privacy Policy,
                 contact us at{" "}
                 <a
-                  href="mailto:privacy@chatterbox.io"
+                  href="mailto:privacy@getchatterbox.app"
                   className="text-white underline decoration-[#555] underline-offset-2 hover:decoration-white"
                 >
-                  privacy@chatterbox.io
+                  privacy@getchatterbox.app
                 </a>{" "}
                 or write to:
               </p>

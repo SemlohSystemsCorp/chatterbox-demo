@@ -12,10 +12,10 @@ export const getAuthUser = cache(async function getAuthUser() {
     redirect("/login");
   }
 
-  // Fetch username and avatar from profiles table
+  // Fetch username, avatar, and status from profiles table
   const { data: profile } = await supabase
     .from("profiles")
-    .select("username, avatar_url")
+    .select("username, avatar_url, status_text, status_emoji, status_expires_at")
     .eq("id", user.id)
     .single();
 
@@ -27,6 +27,9 @@ export const getAuthUser = cache(async function getAuthUser() {
       fullName: (user.user_metadata?.full_name as string) ?? "",
       avatarUrl: profile?.avatar_url ?? (user.user_metadata?.avatar_url as string) ?? null,
       username: profile?.username ?? user.email?.split("@")[0] ?? "",
+      statusText: (profile as Record<string, unknown>)?.status_text as string | null ?? null,
+      statusEmoji: (profile as Record<string, unknown>)?.status_emoji as string | null ?? null,
+      statusExpiresAt: (profile as Record<string, unknown>)?.status_expires_at as string | null ?? null,
     },
   };
 });
@@ -296,12 +299,12 @@ export async function getUnreadCountsForUser(
 export async function getBoxMembers(supabase: Awaited<ReturnType<typeof createClient>>, boxId: string) {
   const { data: members } = await supabase
     .from("box_members")
-    .select("id, user_id, role, joined_at, profiles(id, email, full_name, avatar_url, status, username)")
+    .select("id, user_id, role, joined_at, profiles(id, email, full_name, avatar_url, status, username, status_text, status_emoji, status_expires_at)")
     .eq("box_id", boxId)
     .order("joined_at", { ascending: true });
 
   const profile = (p: unknown) =>
-    p as { id: string; email: string; full_name: string; avatar_url: string | null; status: string; username: string };
+    p as { id: string; email: string; full_name: string; avatar_url: string | null; status: string; username: string; status_text: string | null; status_emoji: string | null; status_expires_at: string | null };
 
   return (
     members?.map((m) => ({
@@ -314,6 +317,9 @@ export async function getBoxMembers(supabase: Awaited<ReturnType<typeof createCl
       avatar_url: profile(m.profiles).avatar_url,
       status: profile(m.profiles).status,
       username: profile(m.profiles).username || profile(m.profiles).email.split("@")[0],
+      status_text: profile(m.profiles).status_text ?? null,
+      status_emoji: profile(m.profiles).status_emoji ?? null,
+      status_expires_at: profile(m.profiles).status_expires_at ?? null,
     })) ?? []
   );
 }

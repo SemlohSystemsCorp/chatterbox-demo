@@ -139,7 +139,7 @@ export function CheckoutClient({ user, boxes }: CheckoutClientProps) {
               </ul>
             </div>
             <a
-              href="mailto:sales@chatterbox.io?subject=Enterprise Plan Inquiry"
+              href="mailto:sales@getchatterbox.app?subject=Enterprise Plan Inquiry"
               className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-white px-6 text-[14px] font-semibold text-black transition-colors hover:bg-[#e0e0e0]"
             >
               Contact Sales

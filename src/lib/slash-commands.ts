@@ -1,0 +1,135 @@
+export interface SlashCommand {
+  name: string;
+  description: string;
+  usage: string;
+}
+
+export const SLASH_COMMANDS: SlashCommand[] = [
+  { name: "giphy", description: "Search for a GIF", usage: "/giphy [search query]" },
+  { name: "shrug", description: "Append ¯\\_(ツ)_/¯", usage: "/shrug [message]" },
+  { name: "tableflip", description: "Append (╯°□°)╯︵ ┻━┻", usage: "/tableflip [message]" },
+  { name: "unflip", description: "Put the table back ┬─┬ノ( º _ ºノ)", usage: "/unflip [message]" },
+  { name: "lenny", description: "Append ( ͡° ͜ʖ ͡°)", usage: "/lenny [message]" },
+  { name: "me", description: "Send an action message", usage: "/me [action]" },
+  { name: "status", description: "Set your status", usage: "/status [emoji] [text]" },
+  { name: "clear", description: "Clear your status", usage: "/clear" },
+  { name: "8ball", description: "Ask the magic 8-ball", usage: "/8ball [question]" },
+  { name: "coin", description: "Flip a coin", usage: "/coin" },
+  { name: "roll", description: "Roll dice (default d6)", usage: "/roll [sides]" },
+  { name: "spoiler", description: "Send a spoiler message", usage: "/spoiler [text]" },
+  { name: "invite", description: "Share an invite link", usage: "/invite" },
+  { name: "date", description: "Send the current date and time", usage: "/date" },
+  { name: "poll", description: "Create a poll", usage: "/poll" },
+];
+
+export interface CommandResult {
+  /** "message" = send as normal message, "status" = set status (no message), "giphy" = needs async gif lookup, "clear_status" = clear status, "open_poll" = open poll modal */
+  type: "message" | "status" | "giphy" | "clear_status" | "open_poll";
+  content?: string;
+  statusEmoji?: string | null;
+  statusText?: string;
+  giphyQuery?: string;
+}
+
+export function parseSlashCommand(input: string): { command: string; args: string } | null {
+  const trimmed = input.trim();
+  if (!trimmed.startsWith("/")) return null;
+  const spaceIdx = trimmed.indexOf(" ");
+  if (spaceIdx === -1) {
+    return { command: trimmed.slice(1).toLowerCase(), args: "" };
+  }
+  return {
+    command: trimmed.slice(1, spaceIdx).toLowerCase(),
+    args: trimmed.slice(spaceIdx + 1),
+  };
+}
+
+const EIGHT_BALL_RESPONSES = [
+  "It is certain.", "It is decidedly so.", "Without a doubt.", "Yes, definitely.",
+  "You may rely on it.", "As I see it, yes.", "Most likely.", "Outlook good.",
+  "Yes.", "Signs point to yes.", "Reply hazy, try again.", "Ask again later.",
+  "Better not tell you now.", "Cannot predict now.", "Concentrate and ask again.",
+  "Don't count on it.", "My reply is no.", "My sources say no.",
+  "Outlook not so good.", "Very doubtful.",
+];
+
+export function executeCommand(command: string, args: string, userName: string): CommandResult | null {
+  switch (command) {
+    case "shrug":
+      return { type: "message", content: args ? `${args} ¯\\_(ツ)_/¯` : "¯\\_(ツ)_/¯" };
+
+    case "tableflip":
+      return { type: "message", content: args ? `${args} (╯°□°)╯︵ ┻━┻` : "(╯°□°)╯︵ ┻━┻" };
+
+    case "unflip":
+      return { type: "message", content: args ? `${args} ┬─┬ノ( º _ ºノ)` : "┬─┬ノ( º _ ºノ)" };
+
+    case "lenny":
+      return { type: "message", content: args ? `${args} ( ͡° ͜ʖ ͡°)` : "( ͡° ͜ʖ ͡°)" };
+
+    case "me":
+      return { type: "message", content: args ? `*${userName} ${args}*` : undefined };
+
+    case "giphy":
+      return { type: "giphy", giphyQuery: args || "random" };
+
+    case "status": {
+      if (!args.trim()) return null;
+      const emojiMatch = args.match(/^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F)\s*/u);
+      if (emojiMatch) {
+        return {
+          type: "status",
+          statusEmoji: emojiMatch[1],
+          statusText: args.slice(emojiMatch[0].length).trim() || emojiMatch[1],
+        };
+      }
+      return { type: "status", statusEmoji: null, statusText: args.trim() };
+    }
+
+    case "clear":
+      return { type: "clear_status" };
+
+    case "8ball": {
+      const answer = EIGHT_BALL_RESPONSES[Math.floor(Math.random() * EIGHT_BALL_RESPONSES.length)];
+      const question = args.trim();
+      return {
+        type: "message",
+        content: question
+          ? `🎱 **${question}** — ${answer}`
+          : `🎱 ${answer}`,
+      };
+    }
+
+    case "coin": {
+      const result = Math.random() < 0.5 ? "Heads" : "Tails";
+      return { type: "message", content: `🪙 Coin flip: **${result}**!` };
+    }
+
+    case "roll": {
+      const sides = Math.max(2, parseInt(args) || 6);
+      const result = Math.floor(Math.random() * sides) + 1;
+      return { type: "message", content: `🎲 Rolled a **${result}** (d${sides})` };
+    }
+
+    case "spoiler":
+      if (!args.trim()) return null;
+      return { type: "message", content: `||${args.trim()}||` };
+
+    case "invite":
+      return { type: "message", content: `📨 Join me on Chatterbox! ${typeof window !== "undefined" ? window.location.origin : ""}` };
+
+    case "date": {
+      const now = new Date();
+      return {
+        type: "message",
+        content: `📅 ${now.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })} — ${now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}`,
+      };
+    }
+
+    case "poll":
+      return { type: "open_poll" };
+
+    default:
+      return null;
+  }
+}

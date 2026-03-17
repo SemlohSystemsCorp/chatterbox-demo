@@ -55,13 +55,21 @@ export async function POST(request: NextRequest) {
     .eq("call_id", call_id)
     .is("left_at", null);
 
-  // If no one left, end the call
+  // If no one left, end the call (atomic: only update if not already ended)
   if (!count || count === 0) {
     const now = new Date();
-    await supabase
+    const { data: endedCall, error: endError } = await supabase
       .from("calls")
       .update({ ended_at: now.toISOString() })
-      .eq("id", call_id);
+      .eq("id", call_id)
+      .is("ended_at", null)
+      .select("id")
+      .maybeSingle();
+
+    // Another request already ended this call
+    if (endError || !endedCall) {
+      return NextResponse.json({ ended: true });
+    }
 
     // Insert channel event for call ended
     const duration = formatDuration(

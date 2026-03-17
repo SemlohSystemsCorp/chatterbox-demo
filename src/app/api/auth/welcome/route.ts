@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "email is required" }, { status: 400 });
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://chatterbox.io";
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://getchatterbox.app";
 
   try {
     await resend.emails.send({

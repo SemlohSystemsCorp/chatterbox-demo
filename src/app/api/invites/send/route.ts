@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://chatterbox.io"}/invite/${code}`;
+  const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://getchatterbox.app"}/invite/${code}`;
 
   // Send emails
   const results: { email: string; success: boolean }[] = [];

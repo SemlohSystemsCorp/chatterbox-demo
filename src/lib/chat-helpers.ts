@@ -39,7 +39,10 @@ export function getInitials(name: string, email: string) {
       .toUpperCase()
       .slice(0, 2);
   }
-  return email[0].toUpperCase();
+  if (email) {
+    return email[0].toUpperCase();
+  }
+  return "?";
 }
 
 export interface MessageData {
@@ -104,6 +107,9 @@ export interface MemberData {
   avatar_url: string | null;
   status: string;
   username: string;
+  status_text: string | null;
+  status_emoji: string | null;
+  status_expires_at: string | null;
 }
 
 export interface ReadCursor {
@@ -117,4 +123,7 @@ export interface UserData {
   fullName: string;
   avatarUrl: string | null;
   username: string;
+  statusText: string | null;
+  statusEmoji: string | null;
+  statusExpiresAt: string | null;
 }

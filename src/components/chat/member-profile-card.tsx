@@ -141,34 +141,28 @@ export function MemberProfileCard({
 
         {open && (
           <div className="absolute left-0 top-full z-50 mt-1 w-[280px] rounded-[10px] border border-[#1a1a1a] bg-[#111] shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
-            {/* Banner + Avatar */}
-            <div className="relative">
-              <div className="h-16 rounded-t-[10px] bg-gradient-to-r from-[#1a1a2e] to-[#16213e]" />
-              <div className="absolute -bottom-5 left-4">
-                <div className="relative">
-                  {sender.avatar_url ? (
-                    <img
-                      src={sender.avatar_url}
-                      alt=""
-                      className="h-14 w-14 rounded-full border-[3px] border-[#111]"
-                    />
-                  ) : (
-                    <div className="flex h-14 w-14 items-center justify-center rounded-full border-[3px] border-[#111] bg-[#1a1a1a] text-[16px] font-bold text-white">
-                      {getInitials(sender.full_name, sender.email)}
-                    </div>
-                  )}
-                  {quickProfile && (
-                    <div
-                      className={`absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full border-[2.5px] border-[#111] ${statusCfg.color}`}
-                      title={statusCfg.label}
-                    />
-                  )}
-                </div>
+            {/* Avatar + Name */}
+            <div className="flex items-center gap-3 px-4 pt-4 pb-2">
+              <div className="relative shrink-0">
+                {sender.avatar_url ? (
+                  <img
+                    src={sender.avatar_url}
+                    alt=""
+                    className="h-12 w-12 rounded-full"
+                  />
+                ) : (
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#1a1a1a] text-[14px] font-bold text-white">
+                    {getInitials(sender.full_name, sender.email)}
+                  </div>
+                )}
+                {quickProfile && (
+                  <div
+                    className={`absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full border-[2.5px] border-[#111] ${statusCfg.color}`}
+                    title={statusCfg.label}
+                  />
+                )}
               </div>
-            </div>
-
-            {/* Name / username */}
-            <div className="px-4 pb-2 pt-7">
+              <div className="min-w-0 flex-1">
               <p className="text-[15px] font-semibold text-white">
                 {quickProfile?.display_name || sender.full_name || sender.email}
               </p>
@@ -195,6 +189,7 @@ export function MemberProfileCard({
                   {quickProfile.status_message}
                 </p>
               )}
+            </div>
             </div>
 
             {/* Quick info — only rows the user has filled out */}

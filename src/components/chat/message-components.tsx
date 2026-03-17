@@ -18,6 +18,7 @@ import { getMediaType, type MediaType } from "@/components/modals/media-preview-
 import { getInitials, type MessageData } from "@/lib/chat-helpers";
 import { TextWithPreviews } from "@/components/chat/link-preview";
 import { MemberProfileCard } from "@/components/chat/member-profile-card";
+import { PollCard } from "@/components/chat/poll-card";
 
 // ── Shared callbacks interface ──
 
@@ -58,10 +59,15 @@ export interface MessageCallbacks {
 // ── System message helpers ──
 
 export interface SystemMessageData {
-  type: "call_started" | "call_ended";
+  type: "call_started" | "call_ended" | "status_update" | "poll";
   call_id?: string;
   duration?: string;
   started_by_name?: string;
+  user_name?: string;
+  status_emoji?: string;
+  status_text?: string;
+  poll_id?: string;
+  question?: string;
 }
 
 export function parseSystemMessage(content: string): SystemMessageData | null {
@@ -74,7 +80,7 @@ export function parseSystemMessage(content: string): SystemMessageData | null {
   }
 }
 
-export function SystemMessage({ data }: { data: SystemMessageData }) {
+export function SystemMessage({ data, currentUserId }: { data: SystemMessageData; currentUserId?: string }) {
   if (data.type === "call_started") {
     return (
       <div className="my-3 flex items-center justify-center gap-2">
@@ -107,6 +113,35 @@ export function SystemMessage({ data }: { data: SystemMessageData }) {
     );
   }
 
+  if (data.type === "status_update") {
+    return (
+      <div className="my-3 flex items-center justify-center gap-2">
+        <div className="flex items-center gap-2 rounded-full border border-[#1a1a1a] bg-[#111] px-3 py-1.5">
+          <span className="text-[14px]">{data.status_emoji || "💬"}</span>
+          <span className="text-[12px] text-[#888]">
+            <span className="font-medium text-[#ccc]">
+              {data.user_name || "Someone"}
+            </span>{" "}
+            set their status to{" "}
+            <span className="font-medium text-[#ccc]">
+              {data.status_emoji ? `${data.status_emoji} ` : ""}{data.status_text}
+            </span>
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  if (data.type === "poll" && data.poll_id) {
+    return (
+      <PollCard
+        pollId={data.poll_id}
+        question={data.question || "Poll"}
+        currentUserId={currentUserId || ""}
+      />
+    );
+  }
+
   return null;
 }
 
@@ -120,7 +155,7 @@ export function MessageContent({
   cb: MessageCallbacks;
 }) {
   return (
-    <div>
+    <div className="overflow-hidden">
       {segmentContent(msg.content, getMediaType).map((seg, si) => {
         if (seg.type === "text") {
           return (

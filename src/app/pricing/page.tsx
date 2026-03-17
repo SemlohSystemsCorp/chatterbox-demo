@@ -215,7 +215,7 @@ export default function PricingPage() {
               Chatterbox Pro completely free.
             </p>
             <a
-              href="mailto:sales@chatterbox.io"
+              href="mailto:sales@getchatterbox.app"
               className="inline-flex h-9 items-center rounded-lg border border-white/[0.08] bg-white/[0.03] px-5 text-[13px] font-medium text-[#ccc] transition-all hover:border-white/[0.12] hover:bg-white/[0.06]"
             >
               Apply for a discount

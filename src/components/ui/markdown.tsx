@@ -13,7 +13,7 @@ interface MarkdownProps {
 
 const components: Components = {
   p: ({ children }) => (
-    <p className="whitespace-pre-wrap text-[#dcddde] [&:not(:first-child)]:mt-1">
+    <p className="whitespace-pre-wrap break-words text-[#dcddde] [&:not(:first-child)]:mt-1">
       {children}
     </p>
   ),
@@ -26,7 +26,7 @@ const components: Components = {
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="text-[#5b9bf5] hover:underline"
+      className="break-all text-[#5b9bf5] hover:underline"
     >
       {children}
     </a>
@@ -47,7 +47,7 @@ const components: Components = {
     );
   },
   pre: ({ children }) => (
-    <pre className="my-1 overflow-x-auto rounded-[6px] bg-[#111] border border-[#1a1a1a] p-3 text-[13px] leading-[20px] text-[#ccc]">
+    <pre className="my-1 max-w-full overflow-x-auto rounded-[6px] bg-[#111] border border-[#1a1a1a] p-3 text-[13px] leading-[20px] text-[#ccc]">
       {children}
     </pre>
   ),
@@ -102,7 +102,7 @@ export function Markdown({ children, className, mentionNames }: MarkdownProps) {
     : children;
 
   return (
-    <div className={className}>
+    <div className={`overflow-hidden break-words ${className ?? ""}`}>
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
         {processed}
       </ReactMarkdown>

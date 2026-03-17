@@ -108,6 +108,37 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Verify the user has access to this channel or conversation
+  if (channel_id) {
+    const { data: ch } = await supabase
+      .from("channels")
+      .select("box_id")
+      .eq("id", channel_id)
+      .single();
+    if (!ch) {
+      return NextResponse.json({ error: "Channel not found" }, { status: 404 });
+    }
+    const { data: membership } = await supabase
+      .from("box_members")
+      .select("id")
+      .eq("box_id", ch.box_id)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (!membership) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+  } else if (conversation_id) {
+    const { data: participant } = await supabase
+      .from("conversation_participants")
+      .select("id")
+      .eq("conversation_id", conversation_id)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (!participant) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+  }
+
   // Check if already pinned
   const { data: existing } = await supabase
     .from("pinned_messages")
@@ -152,12 +183,44 @@ export async function DELETE(request: NextRequest) {
   }
 
   const messageId = request.nextUrl.searchParams.get("message_id");
+  const channelId = request.nextUrl.searchParams.get("channel_id");
+  const conversationId = request.nextUrl.searchParams.get("conversation_id");
 
   if (!messageId) {
     return NextResponse.json(
       { error: "message_id is required" },
       { status: 400 }
     );
+  }
+
+  // Verify access
+  if (channelId) {
+    const { data: ch } = await supabase
+      .from("channels")
+      .select("box_id")
+      .eq("id", channelId)
+      .single();
+    if (ch) {
+      const { data: membership } = await supabase
+        .from("box_members")
+        .select("id")
+        .eq("box_id", ch.box_id)
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (!membership) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    }
+  } else if (conversationId) {
+    const { data: participant } = await supabase
+      .from("conversation_participants")
+      .select("id")
+      .eq("conversation_id", conversationId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (!participant) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
   }
 
   const { error } = await supabase

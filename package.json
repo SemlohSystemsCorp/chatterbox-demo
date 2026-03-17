@@ -14,6 +14,8 @@
     "@daily-co/daily-react": "^0.24.0",
     "@emoji-mart/data": "^1.2.1",
     "@emoji-mart/react": "^1.1.1",
+    "@giphy/js-fetch-api": "^5.7.0",
+    "@giphy/react-components": "^10.1.1",
     "@polar-sh/sdk": "^0.46.4",
     "@supabase/ssr": "^0.9.0",
     "@supabase/supabase-js": "^2.99.1",
@@ -29,6 +31,7 @@
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
     "resend": "^6.9.3",
+    "styled-components": "^6.3.11",
     "zustand": "^5.0.11"
   },
   "devDependencies": {

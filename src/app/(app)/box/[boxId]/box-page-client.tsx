@@ -243,7 +243,7 @@ export function BoxPageClient({
               {box.description && (
                 <p className="mt-0.5 text-[13px] text-[#666]">{box.description}</p>
               )}
-              <p className="mt-0.5 text-[12px] text-[#444]">chatterbox.io/{box.slug}</p>
+              <p className="mt-0.5 text-[12px] text-[#444]">getchatterbox.app/{box.slug}</p>
             </div>
           </div>
 

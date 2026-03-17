@@ -500,7 +500,7 @@ export function BoxSettingsClient({
                         </span>
                       </div>
                       <div className="mt-0.5 text-[12px] text-[#444]">
-                        chatterbox.io/{box.slug}
+                        getchatterbox.app/{box.slug}
                       </div>
                     </div>
                     <div className="text-right text-[12px] text-[#444]">
@@ -873,7 +873,7 @@ export function BoxSettingsClient({
                             </div>
                           ) : plan.id === "enterprise" ? (
                             <a
-                              href="mailto:sales@chatterbox.io"
+                              href="mailto:sales@getchatterbox.app"
                               className="flex h-8 items-center justify-center rounded-[8px] bg-[#1a1a1a] text-[12px] font-medium text-[#888] transition-colors hover:bg-[#252525] hover:text-white"
                             >
                               Contact sales

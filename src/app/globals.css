@@ -4,9 +4,41 @@
   --font-sans: var(--font-inter);
 }
 
+/* ── Theme variables ── */
+
+:root {
+  --cb-bg: #0a0a0a;
+  --cb-bg-secondary: #111111;
+  --cb-bg-tertiary: #1a1a1a;
+  --cb-bg-hover: #141414;
+  --cb-text: #ffffff;
+  --cb-text-secondary: #cccccc;
+  --cb-text-muted: #888888;
+  --cb-text-faint: #555555;
+  --cb-border: #1a1a1a;
+  --cb-scrollbar: #3f3f46;
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  --cb-bg: #ffffff;
+  --cb-bg-secondary: #f7f7f8;
+  --cb-bg-tertiary: #eeeeee;
+  --cb-bg-hover: #f0f0f0;
+  --cb-text: #111111;
+  --cb-text-secondary: #333333;
+  --cb-text-muted: #666666;
+  --cb-text-faint: #999999;
+  --cb-border: #e2e2e2;
+  --cb-scrollbar: #c0c0c0;
+  color-scheme: light;
+}
+
+/* ── Scrollbar ── */
+
 * {
   scrollbar-width: thin;
-  scrollbar-color: #3f3f46 transparent;
+  scrollbar-color: var(--cb-scrollbar) transparent;
 }
 
 *::-webkit-scrollbar {
@@ -19,6 +51,108 @@
 }
 
 *::-webkit-scrollbar-thumb {
-  background-color: #3f3f46;
+  background-color: var(--cb-scrollbar);
   border-radius: 3px;
+}
+
+/* ── Light theme color overrides ──
+   Remap the most common hardcoded dark-mode Tailwind classes
+   so all existing components work without individual edits. */
+
+[data-theme="light"] {
+  /* Backgrounds */
+  .bg-\[\#0a0a0a\] { background-color: #ffffff !important; }
+  .bg-\[\#0a0a0a\]\/80 { background-color: rgb(255 255 255 / 0.8) !important; }
+  .bg-\[\#111\] { background-color: #f7f7f8 !important; }
+  .bg-\[\#0f0f0f\] { background-color: #f5f5f5 !important; }
+  .bg-\[\#0d0d0d\] { background-color: #f5f5f5 !important; }
+  .bg-\[\#1a1a1a\] { background-color: #eeeeee !important; }
+  .bg-\[\#141414\] { background-color: #f0f0f0 !important; }
+  .bg-\[\#131313\] { background-color: #f2f2f2 !important; }
+  .bg-\[\#222\] { background-color: #e5e5e5 !important; }
+  .bg-black { background-color: #ffffff !important; }
+  .bg-black\/60 { background-color: rgb(0 0 0 / 0.3) !important; }
+
+  /* Text */
+  .text-white { color: #111111 !important; }
+  .text-\[\#dcddde\] { color: #333333 !important; }
+  .text-\[\#ddd\] { color: #333333 !important; }
+  .text-\[\#ccc\] { color: #444444 !important; }
+  .text-\[\#999\] { color: #666666 !important; }
+  .text-\[\#888\] { color: #666666 !important; }
+  .text-\[\#777\] { color: #777777 !important; }
+  .text-\[\#666\] { color: #888888 !important; }
+  .text-\[\#555\] { color: #999999 !important; }
+  .text-\[\#444\] { color: #bbbbbb !important; }
+  .text-\[\#333\] { color: #cccccc !important; }
+
+  /* Borders */
+  .border-\[\#1a1a1a\] { border-color: #e2e2e2 !important; }
+  .border-\[\#2a2a2a\] { border-color: #d0d0d0 !important; }
+  .border-\[\#222\] { border-color: #ddd !important; }
+  .border-white\/\[0\.06\] { border-color: rgb(0 0 0 / 0.06) !important; }
+
+  /* Hover states */
+  .hover\:bg-\[\#111\]:hover { background-color: #f0f0f0 !important; }
+  .hover\:bg-\[\#1a1a1a\]:hover { background-color: #e8e8e8 !important; }
+  .hover\:bg-\[\#141414\]:hover { background-color: #ededed !important; }
+  .hover\:bg-white\/\[0\.04\]:hover { background-color: rgb(0 0 0 / 0.04) !important; }
+  .hover\:text-white:hover { color: #111111 !important; }
+  .hover\:text-\[\#aaa\]:hover { color: #555555 !important; }
+  .hover\:text-\[\#888\]:hover { color: #555555 !important; }
+  .hover\:border-\[\#2a2a2a\]:hover { border-color: #d0d0d0 !important; }
+  .hover\:border-\[\#333\]:hover { border-color: #ccc !important; }
+
+  /* Focus states */
+  .focus\:border-white:focus { border-color: #111111 !important; }
+  .focus\:bg-\[\#222\]:focus { background-color: #e8e8e8 !important; }
+  .focus-within\:border-\[\#2a2a2a\]:focus-within { border-color: #d0d0d0 !important; }
+  .focus-within\:border-white:focus-within { border-color: #111 !important; }
+
+  /* Specific components */
+  .bg-white { background-color: #111111 !important; }
+  .bg-white .text-black,
+  .bg-white .text-\[\#111\] { color: #ffffff !important; }
+  .hover\:bg-\[\#e0e0e0\]:hover { background-color: #2a2a2a !important; }
+  .hover\:bg-\[\#e8e8e8\]:hover { background-color: #2a2a2a !important; }
+  .text-black { color: #ffffff !important; }
+
+  /* Button whites → dark buttons in light mode */
+  button.bg-white,
+  a.bg-white {
+    background-color: #111111 !important;
+    color: #ffffff !important;
+  }
+  button.bg-white:hover,
+  a.bg-white:hover {
+    background-color: #2a2a2a !important;
+  }
+
+  /* Inline code */
+  .bg-\[\#1a1a1a\] code { background-color: #e8e8e8 !important; }
+
+  /* Placeholder text */
+  .placeholder\:text-\[\#555\]::placeholder { color: #aaa !important; }
+  .placeholder\:text-\[\#666\]::placeholder { color: #aaa !important; }
+
+  /* Shadows */
+  .shadow-\[0_8px_32px_rgba\(0\,0\,0\,0\.5\)\] { box-shadow: 0 8px 32px rgba(0,0,0,0.1) !important; }
+  .shadow-\[0_16px_64px_rgba\(0\,0\,0\,0\.6\)\] { box-shadow: 0 16px 64px rgba(0,0,0,0.1) !important; }
+  .shadow-\[0_16px_64px_rgba\(0\,0\,0\,0\.5\)\] { box-shadow: 0 16px 64px rgba(0,0,0,0.1) !important; }
+  .shadow-lg { box-shadow: 0 4px 16px rgba(0,0,0,0.08) !important; }
+
+  /* Stroke for presence dots */
+  .stroke-\[\#0a0a0a\] { stroke: #ffffff !important; }
+
+  /* Status indicator border */
+  .border-\[\#0a0a0a\] { border-color: #ffffff !important; }
+
+  /* Markdown code blocks */
+  code.text-\[\#e06c75\] { color: #c0392b !important; }
+
+  /* Search highlight */
+  mark.bg-white\/15 { background-color: rgb(39 110 241 / 0.15) !important; }
+
+  /* Large muted text in footer */
+  .text-\[\#1a1a1a\] { color: #eeeeee !important; }
 }

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
 
 const inter = Inter({
@@ -8,7 +9,7 @@ const inter = Inter({
 });
 
 const APP_NAME = "Chatterbox";
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://chatterbox.io";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://getchatterbox.app";
 const APP_DESCRIPTION =
   "Chatterbox is a modern team communication platform with real-time messaging, video calls, AI-powered features, and a beautiful UI.";
 
@@ -76,9 +77,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
-      <body className={`${inter.variable} font-sans antialiased bg-[#0a0a0a] text-white`}>
-        {children}
+    <html lang="en" className="dark" suppressHydrationWarning>
+      <body className={`${inter.variable} font-sans antialiased bg-[var(--cb-bg)] text-[var(--cb-text)]`}>
+        <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>
   );

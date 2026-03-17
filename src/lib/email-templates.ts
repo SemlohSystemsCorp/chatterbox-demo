@@ -144,13 +144,13 @@ export function inviteEmail(
                     </p>
 
                     <p style="margin:0 0 12px;font-size:12px;color:#d4d4d8;text-align:center;">
-                      <a href="https://chatterbox.io" style="color:#a1a1aa;text-decoration:none;">Website</a>
+                      <a href="https://getchatterbox.app" style="color:#a1a1aa;text-decoration:none;">Website</a>
                       &nbsp;&middot;&nbsp;
-                      <a href="https://chatterbox.io/privacy" style="color:#a1a1aa;text-decoration:none;">Privacy</a>
+                      <a href="https://getchatterbox.app/privacy" style="color:#a1a1aa;text-decoration:none;">Privacy</a>
                       &nbsp;&middot;&nbsp;
-                      <a href="https://chatterbox.io/terms" style="color:#a1a1aa;text-decoration:none;">Terms</a>
+                      <a href="https://getchatterbox.app/terms" style="color:#a1a1aa;text-decoration:none;">Terms</a>
                       &nbsp;&middot;&nbsp;
-                      <a href="https://chatterbox.io/support" style="color:#a1a1aa;text-decoration:none;">Support</a>
+                      <a href="https://getchatterbox.app/support" style="color:#a1a1aa;text-decoration:none;">Support</a>
                     </p>
 
                     <p style="margin:0;font-size:12px;color:#d4d4d8;text-align:center;">
@@ -250,13 +250,13 @@ export function notificationEmail(
                     </p>
 
                     <p style="margin:0 0 12px;font-size:12px;color:#d4d4d8;text-align:center;">
-                      <a href="https://chatterbox.io" style="color:#a1a1aa;text-decoration:none;">Website</a>
+                      <a href="https://getchatterbox.app" style="color:#a1a1aa;text-decoration:none;">Website</a>
                       &nbsp;&middot;&nbsp;
-                      <a href="https://chatterbox.io/privacy" style="color:#a1a1aa;text-decoration:none;">Privacy</a>
+                      <a href="https://getchatterbox.app/privacy" style="color:#a1a1aa;text-decoration:none;">Privacy</a>
                       &nbsp;&middot;&nbsp;
-                      <a href="https://chatterbox.io/terms" style="color:#a1a1aa;text-decoration:none;">Terms</a>
+                      <a href="https://getchatterbox.app/terms" style="color:#a1a1aa;text-decoration:none;">Terms</a>
                       &nbsp;&middot;&nbsp;
-                      <a href="https://chatterbox.io/support" style="color:#a1a1aa;text-decoration:none;">Support</a>
+                      <a href="https://getchatterbox.app/support" style="color:#a1a1aa;text-decoration:none;">Support</a>
                     </p>
 
                     <p style="margin:0;font-size:12px;color:#d4d4d8;text-align:center;">
@@ -483,13 +483,13 @@ export function verificationCodeEmail(code: string): string {
                     </p>
 
                     <p style="margin:0 0 12px;font-size:12px;color:#d4d4d8;text-align:center;">
-                      <a href="https://chatterbox.io" style="color:#a1a1aa;text-decoration:none;">Website</a>
+                      <a href="https://getchatterbox.app" style="color:#a1a1aa;text-decoration:none;">Website</a>
                       &nbsp;&middot;&nbsp;
-                      <a href="https://chatterbox.io/privacy" style="color:#a1a1aa;text-decoration:none;">Privacy</a>
+                      <a href="https://getchatterbox.app/privacy" style="color:#a1a1aa;text-decoration:none;">Privacy</a>
                       &nbsp;&middot;&nbsp;
-                      <a href="https://chatterbox.io/terms" style="color:#a1a1aa;text-decoration:none;">Terms</a>
+                      <a href="https://getchatterbox.app/terms" style="color:#a1a1aa;text-decoration:none;">Terms</a>
                       &nbsp;&middot;&nbsp;
-                      <a href="https://chatterbox.io/support" style="color:#a1a1aa;text-decoration:none;">Support</a>
+                      <a href="https://getchatterbox.app/support" style="color:#a1a1aa;text-decoration:none;">Support</a>
                     </p>
 
                     <p style="margin:0;font-size:12px;color:#d4d4d8;text-align:center;">

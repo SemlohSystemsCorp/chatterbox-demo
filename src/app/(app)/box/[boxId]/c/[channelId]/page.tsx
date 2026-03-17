@@ -10,6 +10,7 @@ import {
   getReadCursorsForChannel,
   getChannelMembers,
   isUserChannelMember,
+  getUserConversations,
 } from "@/lib/data";
 import { redirect } from "next/navigation";
 import { ChannelPageClient } from "./channel-page-client";
@@ -58,11 +59,12 @@ export default async function ChannelPage({
     }
   }
 
-  const [boxes, channels, members, channelMembers] = await Promise.all([
+  const [boxes, channels, members, channelMembers, conversations] = await Promise.all([
     getUserBoxes(supabase, user.id),
     getBoxChannels(supabase, box.id),
     getBoxMembers(supabase, box.id),
     channel.is_private ? getChannelMembers(supabase, channel.id) : Promise.resolve([]),
+    getUserConversations(supabase, user.id),
   ]);
 
   // Fetch read cursors, unread counts, active call, all box calls, and channel events in parallel
@@ -142,6 +144,7 @@ export default async function ChannelPage({
       channels={channels}
       members={members}
       channelMembers={channelMembers}
+      conversations={conversations}
       unreadCounts={unreadCounts}
       initialReadCursors={readCursors}
       activeCall={activeCall}

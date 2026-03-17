@@ -35,7 +35,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const ext = file.name.split(".").pop() || "jpg";
+  // Derive extension from validated MIME type, not user-provided filename
+  const MIME_TO_EXT: Record<string, string> = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/gif": "gif",
+    "image/webp": "webp",
+  };
+  const ext = MIME_TO_EXT[file.type] || "jpg";
   const path = `avatars/${user.id}.${ext}`;
 
   // Upload (upsert to overwrite previous avatar)

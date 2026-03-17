@@ -6,11 +6,11 @@ import {
   MessageSquare,
   Plus,
   Search,
-  Bell,
   Hash,
   Users,
   Link as LinkIcon,
 } from "lucide-react";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 
 interface SidebarBox {
   id: string;
@@ -47,9 +47,7 @@ export function Sidebar({ user, boxes, activeBoxId }: SidebarProps) {
           </div>
           <span className="text-[15px] font-bold text-white">Chatterbox</span>
         </Link>
-        <button className="flex h-8 w-8 items-center justify-center rounded-[8px] text-[#666] transition-colors hover:bg-[#1a1a1a] hover:text-white">
-          <Bell className="h-[18px] w-[18px]" />
-        </button>
+        <NotificationBell userId={user.id} />
       </div>
 
       {/* Search */}

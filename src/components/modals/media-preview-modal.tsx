@@ -158,6 +158,8 @@ export function getMediaType(url: string): MediaType | null {
   if (/\.(jpg|jpeg|png|gif|webp|svg|bmp|ico)$/.test(clean)) return "image";
   if (/\.(mp4|webm|mov|ogg|ogv)$/.test(clean)) return "video";
   if (/\.(mp3|wav|ogg|flac|aac|m4a)$/.test(clean)) return "audio";
+  // Giphy URLs are always images (GIFs)
+  if (/^https?:\/\/(media\d*\.)?giphy\.com\//i.test(url) || /^https?:\/\/i\.giphy\.com\//i.test(url)) return "image";
   // Check for supabase storage URLs with known content
   if (url.includes("/storage/v1/object/public/attachments/")) {
     // Try to infer from URL patterns

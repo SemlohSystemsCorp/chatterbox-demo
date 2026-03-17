@@ -72,12 +72,19 @@ export async function POST(request: NextRequest) {
   }
 
   // Create a default #general channel
-  await supabase.from("channels").insert({
+  const { error: channelError } = await supabase.from("channels").insert({
     box_id: box.id,
     name: "general",
     description: "General discussion",
     created_by: user.id,
   });
+
+  if (channelError) {
+    // Rollback: delete member and box
+    await supabase.from("box_members").delete().eq("box_id", box.id);
+    await supabase.from("boxes").delete().eq("id", box.id);
+    return NextResponse.json({ error: "Failed to create default channel" }, { status: 500 });
+  }
 
   return NextResponse.json({ box }, { status: 201 });
 }

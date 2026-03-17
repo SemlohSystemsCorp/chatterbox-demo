@@ -114,6 +114,39 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Create self-DM (Saved Messages)
+  const { data: selfConvos } = await supabase
+    .from("conversation_participants")
+    .select("conversation_id")
+    .eq("user_id", user.id);
+
+  let hasSelfDm = false;
+  if (selfConvos) {
+    for (const c of selfConvos) {
+      const { count } = await supabase
+        .from("conversation_participants")
+        .select("id", { count: "exact", head: true })
+        .eq("conversation_id", c.conversation_id);
+      if (count === 1) {
+        hasSelfDm = true;
+        break;
+      }
+    }
+  }
+
+  if (!hasSelfDm) {
+    const { data: selfConvo } = await supabase
+      .from("conversations")
+      .insert({ is_group: false })
+      .select("id")
+      .single();
+    if (selfConvo) {
+      await supabase
+        .from("conversation_participants")
+        .insert({ conversation_id: selfConvo.id, user_id: user.id });
+    }
+  }
+
   // Create 1:1 DMs with every existing member
   const { data: existingMembers } = await supabase
     .from("box_members")

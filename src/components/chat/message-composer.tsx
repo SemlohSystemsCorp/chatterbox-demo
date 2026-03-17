@@ -1,11 +1,14 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { Send, Plus, Smile, Reply, X } from "lucide-react";
+import { useState, useCallback, useMemo } from "react";
+import { Send, Plus, Smile, Reply, X, Image } from "lucide-react";
 import { EmojiPicker } from "@/components/emoji-picker";
+import { GifPicker } from "@/components/gif-picker";
 import { ToneAdjuster } from "@/components/chat/tone-adjuster";
 import { MentionPicker } from "@/components/chat/mention-picker";
+import { SlashCommandPicker } from "@/components/chat/slash-command-picker";
 import type { MessageData, MemberData } from "@/lib/chat-helpers";
+import type { SlashCommand } from "@/lib/slash-commands";
 
 // ── Types ──
 
@@ -15,6 +18,8 @@ export interface Attachment {
   file_type: string;
   file_size: number;
 }
+
+export const MAX_MESSAGE_LENGTH = 4000;
 
 export interface MessageComposerProps {
   placeholder: string;
@@ -35,6 +40,8 @@ export interface MessageComposerProps {
   onSend: () => void;
   /** Members available for @mentions */
   members?: MemberData[];
+  /** Called when user picks a GIF from the picker */
+  onGifSelect?: (gif: { url: string; title: string; width: number; height: number }) => void;
 }
 
 // ── Component ──
@@ -57,17 +64,39 @@ export function MessageComposer({
   onFileUpload,
   onSend,
   members,
+  onGifSelect,
 }: MessageComposerProps) {
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [mentionStart, setMentionStart] = useState(0);
+  const [slashQuery, setSlashQuery] = useState<string | null>(null);
 
-  // Detect @mention trigger from input
+  // Detect slash command: only when "/" is at position 0
+  const showSlashPicker = useMemo(() => {
+    if (slashQuery === null) return false;
+    // Only show when the message starts with "/"
+    return newMessage.startsWith("/");
+  }, [slashQuery, newMessage]);
+
+  // Detect @mention and /slash triggers from input
   const handleInputChangeWithMention = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
       onInputChange(e);
 
       const value = e.target.value;
       const cursor = e.target.selectionStart;
+
+      // Detect slash command at start of input
+      if (value.startsWith("/") && !value.includes("\n")) {
+        const spaceIdx = value.indexOf(" ");
+        if (spaceIdx === -1) {
+          // Still typing the command name
+          setSlashQuery(value.slice(1));
+        } else {
+          setSlashQuery(null);
+        }
+      } else {
+        setSlashQuery(null);
+      }
 
       // Look backwards from cursor for an unmatched @
       const textBeforeCursor = value.slice(0, cursor);
@@ -87,6 +116,22 @@ export function MessageComposer({
       setMentionQuery(null);
     },
     [onInputChange],
+  );
+
+  const handleSlashSelect = useCallback(
+    (cmd: SlashCommand) => {
+      onNewMessageChange(`/${cmd.name} `);
+      setSlashQuery(null);
+      requestAnimationFrame(() => {
+        const textarea = inputRef.current;
+        if (textarea) {
+          const pos = cmd.name.length + 2; // "/name "
+          textarea.focus();
+          textarea.setSelectionRange(pos, pos);
+        }
+      });
+    },
+    [onNewMessageChange, inputRef],
   );
 
   const handleMentionSelect = useCallback(
@@ -115,16 +160,21 @@ export function MessageComposer({
 
   const handleKeyDownWithMention = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      // If slash picker is open, let it handle keys
+      if (slashQuery !== null && newMessage.startsWith("/")) {
+        if (["ArrowDown", "ArrowUp", "Enter", "Tab", "Escape"].includes(e.key)) {
+          return;
+        }
+      }
       // If mention picker is open, let it handle arrow keys, enter, tab, escape
       if (mentionQuery !== null && members && members.length > 0) {
         if (["ArrowDown", "ArrowUp", "Enter", "Tab", "Escape"].includes(e.key)) {
-          // The MentionPicker handles these via window keydown listener
           return;
         }
       }
       onKeyDown(e);
     },
-    [mentionQuery, members, onKeyDown],
+    [slashQuery, newMessage, mentionQuery, members, onKeyDown],
   );
 
   return (
@@ -138,6 +188,15 @@ export function MessageComposer({
       />
 
       <div className="relative rounded-[8px] border border-[#1a1a1a] bg-[#111] focus-within:border-[#2a2a2a]">
+        {/* Slash command picker */}
+        {showSlashPicker && slashQuery !== null && (
+          <SlashCommandPicker
+            query={slashQuery}
+            onSelect={handleSlashSelect}
+            onClose={() => setSlashQuery(null)}
+          />
+        )}
+
         {/* Mention picker */}
         {mentionQuery !== null && members && members.length > 0 && (
           <MentionPicker
@@ -244,6 +303,13 @@ export function MessageComposer({
             rows={1}
             className="max-h-[160px] min-h-[28px] flex-1 resize-none bg-transparent px-1 py-1 text-[14px] leading-[22px] text-white placeholder:text-[#555] focus:outline-none"
           />
+          {onGifSelect && (
+            <GifPicker onSelect={onGifSelect}>
+              <button className="mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] text-[#555] transition-colors hover:text-white" title="GIF">
+                <Image className="h-5 w-5" />
+              </button>
+            </GifPicker>
+          )}
           <EmojiPicker
             onSelect={(emoji) => {
               onNewMessageChange(newMessage + emoji);
@@ -257,15 +323,22 @@ export function MessageComposer({
         </div>
 
         <div className="flex items-center justify-between border-t border-[#1a1a1a] px-3 py-1.5">
-          <div className="text-[11px] text-[#444]">
-            <kbd className="rounded bg-[#0a0a0a] px-1 py-0.5 text-[10px] text-[#555]">
-              Enter
-            </kbd>{" "}
-            to send ·{" "}
-            <kbd className="rounded bg-[#0a0a0a] px-1 py-0.5 text-[10px] text-[#555]">
-              Shift+Enter
-            </kbd>{" "}
-            new line
+          <div className="flex items-center gap-3 text-[11px] text-[#444]">
+            <span>
+              <kbd className="rounded bg-[#0a0a0a] px-1 py-0.5 text-[10px] text-[#555]">
+                Enter
+              </kbd>{" "}
+              to send ·{" "}
+              <kbd className="rounded bg-[#0a0a0a] px-1 py-0.5 text-[10px] text-[#555]">
+                Shift+Enter
+              </kbd>{" "}
+              new line
+            </span>
+            {newMessage.length > MAX_MESSAGE_LENGTH * 0.8 && (
+              <span className={`text-[10px] ${newMessage.length > MAX_MESSAGE_LENGTH ? "text-[#de1135]" : "text-[#555]"}`}>
+                {newMessage.length}/{MAX_MESSAGE_LENGTH}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-1">
             <ToneAdjuster
@@ -274,7 +347,7 @@ export function MessageComposer({
             />
             <button
               onClick={onSend}
-              disabled={(!newMessage.trim() && attachments.length === 0) || sending}
+              disabled={(!newMessage.trim() && attachments.length === 0) || sending || newMessage.length > MAX_MESSAGE_LENGTH}
               className="flex h-7 w-7 items-center justify-center rounded-[6px] bg-white text-black transition-colors hover:bg-[#e0e0e0] disabled:bg-[#1a1a1a] disabled:text-[#555]"
               title="Send message"
             >

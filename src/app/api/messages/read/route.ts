@@ -33,6 +33,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Validate timestamp format early, before any DB queries use it
+  if (isNaN(new Date(timestamp).getTime())) {
+    return NextResponse.json(
+      { error: "Invalid timestamp format" },
+      { status: 400 }
+    );
+  }
+
   // Check if user allows read receipts
   const { data: settings } = await supabase
     .from("user_settings")
@@ -58,14 +66,6 @@ export async function POST(request: NextRequest) {
 
   if (existing && new Date(existing.last_read_at) >= new Date(timestamp)) {
     return NextResponse.json({ ok: true });
-  }
-
-  // Validate timestamp format
-  if (isNaN(new Date(timestamp).getTime())) {
-    return NextResponse.json(
-      { error: "Invalid timestamp format" },
-      { status: 400 }
-    );
   }
 
   // Insert or update — can't use upsert because NULL ≠ NULL in Postgres

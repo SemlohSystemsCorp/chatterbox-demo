@@ -1,0 +1,45 @@
+ui fixes 
+add avatar thing
+make stuff compoents, and lib files. 
+
+
+
+box settings
+invite permissions 
+emails
+notfications
+
+
+
+
+
+i went ahead and finshed fixing Notification system — notification_preferences table and settings UI exist, but no notifications are actually sent (no push, no email, no in-app).
+
+Email sending — src/lib/resend.ts and src/lib/email-templates.ts exist but are never called. No emails for invites, onboarding, digests, etc.
+
+P
+inned messages — There's a pin button in the channel header but it doesn't do anything (no pinned_messages table or API). how did i do?
+
+
+
+
+
+
+make 
+Message search results navigation — Search modal exists but clicking a result doesn't scroll to that message in context.
+File/media gallery — No way to browse all files shared in a channel.
+Unread badge on sidebar — Unread counts are fetched for channels but DM conversations don't show unread indicators in the sidebar.
+Message link previews — URLs in messages aren't unfurled (no OG image/title previews).
+Typing indicators in channels — useTyping hook exists but only used in DMs, not channel pages.
+Keyboard shortcuts — No global shortcut system (Cmd+K for search works via button, but no Cmd+/ help, no Cmd+Shift+A for all unreads, etc.).
+User profiles / profile cards — Clicking a username does nothing. No profile popover or page showing bio, status, timezone.
+Mobile responsiveness — UI uses fixed widths (sidebar 240px, etc.) that likely break on small screens.
+
+
+
+
+
+
+
+
+

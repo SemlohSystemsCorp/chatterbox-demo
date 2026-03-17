@@ -13,6 +13,10 @@ export async function GET(request: NextRequest) {
 
   const q = request.nextUrl.searchParams.get("q")?.trim();
   const boxId = request.nextUrl.searchParams.get("box_id");
+  const fromUser = request.nextUrl.searchParams.get("from");
+  const inChannel = request.nextUrl.searchParams.get("in");
+  const before = request.nextUrl.searchParams.get("before");
+  const hasFilter = request.nextUrl.searchParams.get("has");
 
   if (!q || q.length < 2) {
     return NextResponse.json({ results: [] });
@@ -25,8 +29,42 @@ export async function GET(request: NextRequest) {
     .map((w) => `${w}:*`)
     .join(" & ");
 
-  // Search messages the user has access to
-  // If boxId is provided, limit to channels in that box
+  // Resolve `from:` filter — look up user by name/username
+  let fromUserId: string | null = null;
+  if (fromUser) {
+    const { data: matchedProfiles } = await supabase
+      .from("profiles")
+      .select("id")
+      .or(`username.ilike.%${fromUser}%,full_name.ilike.%${fromUser}%`)
+      .limit(1);
+    if (matchedProfiles && matchedProfiles.length > 0) {
+      fromUserId = matchedProfiles[0].id;
+    } else {
+      // No matching user — return empty
+      return NextResponse.json({ results: [] });
+    }
+  }
+
+  // Resolve `in:` filter — look up channel by name
+  let inChannelId: string | null = null;
+  if (inChannel) {
+    let channelQuery = supabase
+      .from("channels")
+      .select("id")
+      .ilike("name", `%${inChannel}%`)
+      .limit(1);
+    if (boxId) {
+      channelQuery = channelQuery.eq("box_id", boxId);
+    }
+    const { data: matchedChannels } = await channelQuery;
+    if (matchedChannels && matchedChannels.length > 0) {
+      inChannelId = matchedChannels[0].id;
+    } else {
+      return NextResponse.json({ results: [] });
+    }
+  }
+
+  // Search messages
   let query = supabase
     .from("messages")
     .select(
@@ -36,8 +74,8 @@ export async function GET(request: NextRequest) {
     .order("created_at", { ascending: false })
     .limit(20);
 
-  if (boxId) {
-    // Get channel IDs for this box first
+  // Apply box filter
+  if (boxId && !inChannelId) {
     const { data: boxChannels } = await supabase
       .from("channels")
       .select("id")
@@ -53,13 +91,31 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // Apply from: filter
+  if (fromUserId) {
+    query = query.eq("sender_id", fromUserId);
+  }
+
+  // Apply in: filter
+  if (inChannelId) {
+    query = query.eq("channel_id", inChannelId);
+  }
+
+  // Apply before: filter
+  if (before) {
+    const beforeDate = new Date(before);
+    if (!isNaN(beforeDate.getTime())) {
+      query = query.lt("created_at", beforeDate.toISOString());
+    }
+  }
+
   const { data: messages, error } = await query;
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const results = (messages ?? []).map((m) => {
+  let results = (messages ?? []).map((m) => {
     const sender = m.profiles as unknown as {
       id: string;
       full_name: string;
@@ -89,6 +145,18 @@ export async function GET(request: NextRequest) {
       box_name: channel?.boxes?.name ?? null,
     };
   });
+
+  // Apply has: filter client-side
+  if (hasFilter === "link") {
+    const urlPattern = /https?:\/\/[^\s]+/;
+    results = results.filter((r) => urlPattern.test(r.content));
+  } else if (hasFilter === "image") {
+    const imgPattern = /\.(png|jpg|jpeg|gif|webp|svg)/i;
+    results = results.filter((r) => imgPattern.test(r.content));
+  } else if (hasFilter === "file") {
+    const filePattern = /\.(pdf|doc|docx|xls|xlsx|zip|tar|gz|csv|txt)/i;
+    results = results.filter((r) => filePattern.test(r.content));
+  }
 
   return NextResponse.json({ results });
 }

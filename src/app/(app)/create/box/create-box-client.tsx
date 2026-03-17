@@ -119,7 +119,7 @@ export function CreateBoxClient({ user, boxes }: CreateBoxClientProps) {
               <div className="rounded-[8px] bg-[#111] px-3 py-2">
                 <span className="text-[12px] text-[#555]">URL: </span>
                 <span className="text-[12px] font-medium text-[#888]">
-                  chatterbox.io/{slug}
+                  getchatterbox.app/{slug}
                 </span>
               </div>
             )}

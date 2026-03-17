@@ -7,6 +7,7 @@ import {
   getBoxChannels,
   getBoxMembers,
   getReadCursorsForConversation,
+  getUserConversations,
 } from "@/lib/data";
 import { redirect } from "next/navigation";
 import { DmPageClient } from "./dm-page-client";
@@ -49,7 +50,10 @@ export default async function DmPage({
     redirect("/dashboard");
   }
 
-  const boxes = await getUserBoxes(supabase, user.id);
+  const [boxes, conversations] = await Promise.all([
+    getUserBoxes(supabase, user.id),
+    getUserConversations(supabase, user.id),
+  ]);
 
   // If a box context is provided, load that box's channels and members for the sidebar
   let box = null;
@@ -135,6 +139,7 @@ export default async function DmPage({
       channels={channels}
       members={members}
       conversation={conversation}
+      conversations={conversations}
       activeCall={activeCall}
       activeCalls={activeCalls}
       initialReadCursors={readCursors}
