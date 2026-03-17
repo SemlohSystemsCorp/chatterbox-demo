@@ -9,8 +9,8 @@ import { createClient } from "@/lib/supabase/client";
 import { useSettingsStore } from "@/stores/settings-store";
 
 const ERROR_MESSAGES: Record<string, string> = {
-  email_exists: "An account with this email already exists. Please log in with your email and password instead.",
-  auth_callback_error: "Something went wrong during sign in. Please try again.",
+  email_exists: "An account with this email has already been created. Please log in with your email and password instead.",
+  auth_callback_error: "Something went wrong during sign in. Please try again later.",
 };
 
 export default function LoginPage() {
