@@ -1,37 +1,52 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 📡 Chatterbox  
+### Real‑Time Messaging, Reinvented  
+Built by **Semloh Systems**
 
-## Getting Started
+---
 
-First, run the development server:
+## 🚀 Overview
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+Chatterbox is a fast, scalable, and developer‑friendly **real‑time messaging platform** designed for applications that demand instant communication. Whether you're building a chat app, collaborative workspace, multiplayer experience, or live support system, Chatterbox provides the infrastructure to deliver seamless, low‑latency messaging at any scale.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Semloh Systems created Chatterbox with a simple mission:  
+**Make real‑time communication effortless, reliable, and enjoyable to build.**
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## ✨ Key Features
 
-## Learn More
+- **⚡ Real‑Time Messaging**  
+  Event‑driven architecture ensures instant message delivery.
 
-To learn more about Next.js, take a look at the following resources:
+- **🔌 Easy Integration**  
+  Clean APIs and SDKs for web, mobile, and backend environments.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **📡 WebSocket‑Powered**  
+  Persistent, low‑latency connections for smooth communication.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **📱 Multi‑Client Support**  
+  Works across browsers, native apps, and desktop clients.
 
-## Deploy on Vercel
+- **🔒 Secure by Design**  
+  Authentication hooks, message validation, and optional encryption.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- **📈 Scalable Architecture**  
+  Horizontal scaling support for high‑traffic deployments.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-From all of use at Semloh systems I hope you enjoy using ChatterBox :)
+- **🧩 Extensible**  
+  Plugins, middleware, and event hooks for custom logic.
+
+---
+
+## 🏗️ Architecture
+
+Chatterbox is built around a modular, event‑driven core:
+
+- **Gateway Layer** — Manages WebSocket connections and routing  
+- **Message Broker** — Ensures fast, reliable message delivery  
+- **Application Layer** — Rooms, presence, events, and custom logic  
+- **Storage Layer (Optional)** — Persistence for message history and metadata  
+
+This architecture keeps Chatterbox lightweight for small projects and powerful enough for enterprise‑scale systems.
+
+---
