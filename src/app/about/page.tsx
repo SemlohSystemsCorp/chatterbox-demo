@@ -36,26 +36,20 @@ const values = [
 
 const team = [
   {
-    name: "Jordan Hayes",
+    name: "George Holmes",
     role: "CEO & Co-founder",
-    bio: "Previously engineering lead at Stripe. Built distributed systems for 10 years before deciding team chat needed a rethink.",
+    bio: "Founded Semloh Systems in 2025",
   },
   {
-    name: "Priya Sharma",
+    name: "Michael Chessare",
     role: "CTO & Co-founder",
-    bio: "Former principal engineer at Cloudflare. Obsessed with real-time systems, low latency, and making complex things feel simple.",
+    bio: "Experienced backend engenier. Co-founded Semloh Systems",
   },
   {
-    name: "Marcus Chen",
-    role: "Head of Design",
-    bio: "Led product design at Linear and Figma. Believes the best interfaces are the ones you don't notice.",
-  },
-  {
-    name: "Elena Rodriguez",
-    role: "Head of Engineering",
-    bio: "Built messaging infrastructure at WhatsApp. Knows what it takes to deliver messages reliably at any scale.",
-  },
-];
+    name: "Connor Dugan",
+    role: "CFO & Co-founder",
+    bio: "Cybersecurity expert. Co-founder of Semloh Systems",
+  }
 
 const milestones = [
   { year: "2023", event: "Founded in San Francisco" },
