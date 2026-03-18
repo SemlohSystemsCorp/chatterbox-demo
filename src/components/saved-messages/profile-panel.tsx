@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Camera, X } from "lucide-react";
+import { DeviceCameraIcon as Camera, XIcon as X } from "@primer/octicons-react";
 import { useSettingsStore } from "@/stores/settings-store";
 
 interface ProfilePanelProps {

@@ -3,21 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  Hash,
-  Lock,
-  Send,
-  Plus,
-  Smile,
-  ChevronDown,
-  Check,
-  UserPlus,
-  MessageSquare,
-  LogOut,
-  Bot,
-  Circle,
-  Sparkles,
-} from "lucide-react";
+import { HashIcon as Hash, LockIcon as Lock, PaperAirplaneIcon as Send, PlusIcon as Plus, SmileyIcon as Smile, ChevronDownIcon as ChevronDown, CheckIcon as Check, PersonAddIcon as UserPlus, CommentDiscussionIcon as MessageSquare, SignOutIcon as LogOut, HubotIcon as Bot, CircleIcon as Circle, SparklesFillIcon as Sparkles, OrganizationIcon as Building2, GlobeIcon as Globe } from "@primer/octicons-react";
 import { Markdown } from "@/components/ui/markdown";
 import { CreateChannelModal } from "@/components/modals/create-channel-modal";
 import { InviteModal } from "@/components/modals/invite-modal";
@@ -84,6 +70,10 @@ interface SherlockClientProps {
   members: MemberData[];
 }
 
+// ── Tabs ──
+
+type SherlockTab = "workspace" | "general";
+
 // ── Sherlock greeting ──
 
 const SHERLOCK_GREETINGS = [
@@ -92,6 +82,14 @@ const SHERLOCK_GREETINGS = [
   "The game is afoot! What brings you to me?",
   "I've been expecting you. What's on your mind?",
   "At your service. Every puzzle has a solution — let's find yours.",
+];
+
+const GENERAL_GREETINGS = [
+  "What can I help you with today?",
+  "Ready to assist — ask me anything!",
+  "At your service. What shall we work on?",
+  "Fire away — I'm all ears.",
+  "What's on your mind?",
 ];
 
 function formatTime(dateStr: string) {
@@ -111,7 +109,8 @@ export function SherlockClient({
   members,
 }: SherlockClientProps) {
   const router = useRouter();
-  const [messages, setMessages] = useState<SherlockMessage[]>([
+  const [activeTab, setActiveTab] = useState<SherlockTab>("workspace");
+  const [workspaceMessages, setWorkspaceMessages] = useState<SherlockMessage[]>([
     {
       id: "greeting",
       role: "assistant",
@@ -119,6 +118,16 @@ export function SherlockClient({
       timestamp: new Date().toISOString(),
     },
   ]);
+  const [generalMessages, setGeneralMessages] = useState<SherlockMessage[]>([
+    {
+      id: "greeting",
+      role: "assistant",
+      content: GENERAL_GREETINGS[Math.floor(Math.random() * GENERAL_GREETINGS.length)],
+      timestamp: new Date().toISOString(),
+    },
+  ]);
+  const messages = activeTab === "workspace" ? workspaceMessages : generalMessages;
+  const setMessages = activeTab === "workspace" ? setWorkspaceMessages : setGeneralMessages;
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
   const [dmLoading, setDmLoading] = useState<string | null>(null);
@@ -179,7 +188,11 @@ export function SherlockClient({
       const res = await fetch("/api/ai/sherlock", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ box_id: box.id, messages: history }),
+        body: JSON.stringify({
+          box_id: box.id,
+          messages: history,
+          mode: activeTab === "general" ? "general" : undefined,
+        }),
       });
       const data = await res.json();
 
@@ -441,6 +454,32 @@ export function SherlockClient({
           </div>
         </div>
 
+        {/* Tab switcher */}
+        <div className="flex shrink-0 border-b border-[#1a1a1a]">
+          <button
+            onClick={() => setActiveTab("workspace")}
+            className={`flex flex-1 items-center justify-center gap-2 py-2.5 text-[12px] font-medium transition-colors ${
+              activeTab === "workspace"
+                ? "border-b-2 border-[#276ef1] text-white"
+                : "text-[#555] hover:text-[#888]"
+            }`}
+          >
+            <Building2 className="h-3.5 w-3.5" />
+            Workspace
+          </button>
+          <button
+            onClick={() => setActiveTab("general")}
+            className={`flex flex-1 items-center justify-center gap-2 py-2.5 text-[12px] font-medium transition-colors ${
+              activeTab === "general"
+                ? "border-b-2 border-[#276ef1] text-white"
+                : "text-[#555] hover:text-[#888]"
+            }`}
+          >
+            <Globe className="h-3.5 w-3.5" />
+            General
+          </button>
+        </div>
+
         {/* Messages */}
         <div className="relative flex-1 overflow-auto">
           <div className="px-4 py-4">
@@ -448,19 +487,43 @@ export function SherlockClient({
             <div className="mb-6 rounded-[12px] border border-[#1a1a1a] bg-[#0f0f0f] p-5">
               <div className="flex items-center gap-3 mb-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#276ef1]">
-                  <Bot className="h-6 w-6 text-white" />
+                  {activeTab === "general" ? (
+                    <Globe className="h-6 w-6 text-white" />
+                  ) : (
+                    <Bot className="h-6 w-6 text-white" />
+                  )}
                 </div>
                 <div>
-                  <h2 className="text-[16px] font-bold text-white">Meet Sherlock</h2>
-                  <p className="text-[12px] text-[#555]">Your AI assistant for {box.name}</p>
+                  <h2 className="text-[16px] font-bold text-white">
+                    {activeTab === "general" ? "General Assistant" : "Meet Sherlock"}
+                  </h2>
+                  <p className="text-[12px] text-[#555]">
+                    {activeTab === "general"
+                      ? "Chat with Sherlock about anything"
+                      : `Your AI assistant for ${box.name}`}
+                  </p>
                 </div>
               </div>
               <p className="text-[13px] leading-[20px] text-[#888]">
-                I can help you brainstorm ideas, draft messages, answer questions about your workspace, and more.
-                Just type a message below to get started.
+                {activeTab === "general"
+                  ? "Ask me anything — brainstorm ideas, get coding help, draft emails, or just have a conversation. No workspace context here, just a general-purpose AI assistant."
+                  : "I can help you brainstorm ideas, draft messages, answer questions about your workspace, and more. Just type a message below to get started."}
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
-                {["Summarize today's activity", "What decisions were made this week?", "Draft an announcement", "What can you help with?"].map((suggestion) => (
+                {(activeTab === "general"
+                  ? [
+                      "Help me brainstorm ideas",
+                      "Explain a concept",
+                      "Draft an email",
+                      "Help me with code",
+                    ]
+                  : [
+                      "Summarize today's activity",
+                      "What decisions were made this week?",
+                      "Draft an announcement",
+                      "What can you help with?",
+                    ]
+                ).map((suggestion) => (
                   <button
                     key={suggestion}
                     onClick={() => {
@@ -540,7 +603,7 @@ export function SherlockClient({
                 value={input}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
-                placeholder="Ask Sherlock anything..."
+                placeholder={activeTab === "general" ? "Ask anything..." : "Ask about your workspace..."}
                 rows={1}
                 className="max-h-[160px] min-h-[28px] flex-1 resize-none bg-transparent px-1 py-1 text-[14px] leading-[22px] text-white placeholder:text-[#555] focus:outline-none"
               />

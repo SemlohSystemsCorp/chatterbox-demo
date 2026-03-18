@@ -2,14 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  MessageSquare,
-  Plus,
-  Search,
-  Hash,
-  Users,
-  Link as LinkIcon,
-} from "lucide-react";
+import { CommentDiscussionIcon as MessageSquare, PlusIcon as Plus, SearchIcon as Search, HashIcon as Hash, PeopleIcon as Users, LinkIcon } from "@primer/octicons-react";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 
 interface SidebarBox {

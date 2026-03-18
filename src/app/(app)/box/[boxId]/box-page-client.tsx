@@ -3,21 +3,10 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  Hash,
-  Lock,
-  Plus,
-  Users,
-  Settings,
-  ArrowRight,
-  Crown,
-  Shield,
-  ChevronDown,
-  Check,
-  Phone,
-} from "lucide-react";
+import { HashIcon as Hash, LockIcon as Lock, PlusIcon as Plus, PeopleIcon as Users, GearIcon as Settings, ArrowRightIcon as ArrowRight, TrophyIcon as Crown, ShieldIcon as Shield, ChevronDownIcon as ChevronDown, CheckIcon as Check, DeviceMobileIcon as Phone, PersonAddIcon as UserPlus, CopyIcon as Copy } from "@primer/octicons-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { CreateChannelModal } from "@/components/modals/create-channel-modal";
+import { InviteModal } from "@/components/modals/invite-modal";
 
 interface BoxData {
   id: string;
@@ -100,6 +89,8 @@ export function BoxPageClient({
   const router = useRouter();
   const isAdmin = box.role === "owner" || box.role === "admin";
   const [createChannelOpen, setCreateChannelOpen] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [slugCopied, setSlugCopied] = useState(false);
   const boxInitials = box.name
     .split(" ")
     .map((w) => w[0])
@@ -193,16 +184,16 @@ export function BoxPageClient({
             )}
           </div>
 
-          {/* Stats */}
+          {/* Stats — clickable */}
           <div className="flex items-center gap-3 text-[12px] text-[#555]">
-            <span className="flex items-center gap-1">
+            <Link href={`/box/${box.short_id}/channels`} className="flex items-center gap-1 transition-colors hover:text-white">
               <Hash className="h-3 w-3" />
               {channels.length}
-            </span>
-            <span className="flex items-center gap-1">
+            </Link>
+            <Link href={`/box/${box.short_id}/members`} className="flex items-center gap-1 transition-colors hover:text-white">
               <Users className="h-3 w-3" />
               {members.length}
-            </span>
+            </Link>
             {onlineMembers.length > 0 && (
               <span className="flex items-center gap-1">
                 <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
@@ -225,7 +216,7 @@ export function BoxPageClient({
       <div className="flex-1 overflow-auto">
         <div className="mx-auto max-w-[720px] px-6 py-8">
           {/* Box Identity */}
-          <div className="mb-8 flex items-center gap-4">
+          <div className="mb-6 flex items-center gap-4">
             {box.icon_url ? (
               <img src={box.icon_url} alt="" className="h-16 w-16 rounded-xl" />
             ) : (
@@ -239,12 +230,80 @@ export function BoxPageClient({
                 <span className="rounded bg-[#1a1a1a] px-1.5 py-0.5 text-[10px] font-medium uppercase text-[#666]">
                   {box.plan}
                 </span>
+                {box.role === "owner" && (
+                  <span className="flex items-center gap-1 text-[11px] text-amber-400">
+                    <Crown className="h-3 w-3" /> Owner
+                  </span>
+                )}
+                {box.role === "admin" && (
+                  <span className="flex items-center gap-1 text-[11px] text-blue-400">
+                    <Shield className="h-3 w-3" /> Admin
+                  </span>
+                )}
               </div>
               {box.description && (
                 <p className="mt-0.5 text-[13px] text-[#666]">{box.description}</p>
               )}
-              <p className="mt-0.5 text-[12px] text-[#444]">getchatterbox.app/{box.slug}</p>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(`getchatterbox.app/${box.slug}`);
+                  setSlugCopied(true);
+                  setTimeout(() => setSlugCopied(false), 2000);
+                }}
+                className="mt-0.5 flex items-center gap-1 text-[12px] text-[#444] transition-colors hover:text-[#888]"
+              >
+                getchatterbox.app/{box.slug}
+                {slugCopied ? (
+                  <Check className="h-3 w-3 text-[#22c55e]" />
+                ) : (
+                  <Copy className="h-3 w-3" />
+                )}
+              </button>
             </div>
+          </div>
+
+          {/* Quick Actions */}
+          <div className="mb-8 grid grid-cols-3 gap-3">
+            {channels.length > 0 && (
+              <Link
+                href={`/box/${box.short_id}/c/${channels[0].short_id}`}
+                className="flex items-center gap-3 rounded-[12px] border border-[#1a1a1a] bg-[#0f0f0f] p-3.5 transition-colors hover:border-[#2a2a2a] hover:bg-[#111]"
+              >
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-[#1a1a1a]">
+                  <Hash className="h-4 w-4 text-[#888]" />
+                </div>
+                <div className="min-w-0">
+                  <div className="truncate text-[13px] font-medium text-white">#{channels[0].name}</div>
+                  <div className="text-[11px] text-[#555]">Jump in</div>
+                </div>
+              </Link>
+            )}
+            {isAdmin && (
+              <button
+                onClick={() => setInviteOpen(true)}
+                className="flex items-center gap-3 rounded-[12px] border border-[#1a1a1a] bg-[#0f0f0f] p-3.5 text-left transition-colors hover:border-[#2a2a2a] hover:bg-[#111]"
+              >
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-[#1a1a1a]">
+                  <UserPlus className="h-4 w-4 text-[#888]" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[13px] font-medium text-white">Invite</div>
+                  <div className="text-[11px] text-[#555]">Add people</div>
+                </div>
+              </button>
+            )}
+            <Link
+              href={`/box/${box.short_id}/settings`}
+              className="flex items-center gap-3 rounded-[12px] border border-[#1a1a1a] bg-[#0f0f0f] p-3.5 transition-colors hover:border-[#2a2a2a] hover:bg-[#111]"
+            >
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[8px] bg-[#1a1a1a]">
+                <Settings className="h-4 w-4 text-[#888]" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-[13px] font-medium text-white">Settings</div>
+                <div className="text-[11px] text-[#555]">Configure</div>
+              </div>
+            </Link>
           </div>
 
           {/* Channels */}
@@ -268,7 +327,7 @@ export function BoxPageClient({
               </div>
             ) : (
               <div className="space-y-1">
-                {channels.map((channel) => (
+                {channels.slice(0, 5).map((channel) => (
                   <Link
                     key={channel.id}
                     href={`/box/${box.short_id}/c/${channel.short_id}`}
@@ -292,6 +351,15 @@ export function BoxPageClient({
                     <ArrowRight className="h-3.5 w-3.5 text-[#333] opacity-0 transition-all group-hover:translate-x-0.5 group-hover:text-[#666] group-hover:opacity-100" />
                   </Link>
                 ))}
+                {channels.length > 5 && (
+                  <Link
+                    href={`/box/${box.short_id}/channels`}
+                    className="flex items-center justify-center gap-1.5 rounded-[10px] py-2.5 text-[13px] font-medium text-[#555] transition-colors hover:bg-[#111] hover:text-white"
+                  >
+                    View all {channels.length} channels
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </Link>
+                )}
               </div>
             )}
           </div>
@@ -345,14 +413,17 @@ export function BoxPageClient({
                 Members ({members.length})
               </h3>
               {isAdmin && (
-                <button className="text-[12px] font-medium text-[#555] hover:text-white">
-                  <Plus className="mr-0.5 inline h-3 w-3" /> Invite
+                <button
+                  onClick={() => setInviteOpen(true)}
+                  className="text-[12px] font-medium text-[#555] hover:text-white"
+                >
+                  <UserPlus className="mr-0.5 inline h-3 w-3" /> Invite
                 </button>
               )}
             </div>
 
             <div className="space-y-1">
-              {members.map((member) => {
+              {members.slice(0, 5).map((member) => {
                 const RoleIcon = getRoleIcon(member.role);
                 const initials = member.full_name
                   ? member.full_name
@@ -405,6 +476,15 @@ export function BoxPageClient({
                   </div>
                 );
               })}
+              {members.length > 5 && (
+                <Link
+                  href={`/box/${box.short_id}/members`}
+                  className="flex items-center justify-center gap-1.5 rounded-[10px] py-2.5 text-[13px] font-medium text-[#555] transition-colors hover:bg-[#111] hover:text-white"
+                >
+                  View all {members.length} members
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              )}
             </div>
           </div>
         </div>
@@ -414,6 +494,12 @@ export function BoxPageClient({
         onClose={() => setCreateChannelOpen(false)}
         boxId={box.id}
         boxShortId={box.short_id}
+      />
+      <InviteModal
+        open={inviteOpen}
+        onClose={() => setInviteOpen(false)}
+        boxId={box.id}
+        boxName={box.name}
       />
     </AppShell>
   );

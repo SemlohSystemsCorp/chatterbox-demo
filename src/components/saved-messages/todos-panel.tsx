@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Plus, Trash2, GripVertical } from "lucide-react";
+import { PlusIcon as Plus, TrashIcon as Trash2, GrabberIcon as GripVertical } from "@primer/octicons-react";
 
 interface Todo {
   id: string;

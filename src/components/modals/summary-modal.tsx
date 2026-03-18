@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Sparkles, Loader2, RefreshCw } from "lucide-react";
+import { XIcon as X, SparklesFillIcon as Sparkles, LoopIcon as Loader2, SyncIcon as RefreshCw } from "@primer/octicons-react";
 import { Markdown } from "@/components/ui/markdown";
 
 interface SummaryModalProps {

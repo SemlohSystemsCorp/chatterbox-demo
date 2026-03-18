@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { BarChart3, Check, Clock, Users, RotateCcw } from "lucide-react";
+import { GraphIcon as BarChart3, CheckIcon as Check, ClockIcon as Clock, PeopleIcon as Users, HistoryIcon as RotateCcw } from "@primer/octicons-react";
 import { createClient } from "@/lib/supabase/client";
 
 interface PollOption {

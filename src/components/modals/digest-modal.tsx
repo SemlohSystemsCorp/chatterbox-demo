@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Newspaper, Loader2, RefreshCw } from "lucide-react";
+import { XIcon as X, NoteIcon as Newspaper, LoopIcon as Loader2, SyncIcon as RefreshCw } from "@primer/octicons-react";
 import { Markdown } from "@/components/ui/markdown";
 
 interface DigestModalProps {

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { MessageSquare } from "lucide-react";
+import { CommentDiscussionIcon as MessageSquare } from "@primer/octicons-react";
 
 export function MarketingNav() {
   return (

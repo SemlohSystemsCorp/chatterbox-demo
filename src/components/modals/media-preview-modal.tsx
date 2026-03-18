@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useCallback } from "react";
-import { X, Download, ZoomIn, ZoomOut } from "lucide-react";
+import { XIcon as X, DownloadIcon as Download, ZoomInIcon as ZoomIn, ZoomOutIcon as ZoomOut } from "@primer/octicons-react";
 import { useState } from "react";
 
 export type MediaType = "image" | "video" | "audio";

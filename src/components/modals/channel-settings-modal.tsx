@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { X, Hash, Lock, Trash2, LogOut } from "lucide-react";
+import { XIcon as X, HashIcon as Hash, LockIcon as Lock, TrashIcon as Trash2, SignOutIcon as LogOut } from "@primer/octicons-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { MessageSquare } from "lucide-react";
+import { CommentDiscussionIcon as MessageSquare } from "@primer/octicons-react";
 import Link from "next/link";
 
 export const metadata: Metadata = {

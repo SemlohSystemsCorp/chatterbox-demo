@@ -1,18 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import {
-  Bell,
-  CheckCheck,
-  X,
-  Loader2,
-  AtSign,
-  MessageSquare,
-  Reply,
-  Smile,
-  Mail,
-  Pin,
-} from "lucide-react";
+import { BellIcon as Bell, ChecklistIcon as CheckCheck, XIcon as X, LoopIcon as Loader2, MentionIcon as AtSign, CommentDiscussionIcon as MessageSquare, ReplyIcon as Reply, SmileyIcon as Smile, MailIcon as Mail, PinIcon as Pin, SparklesFillIcon as Sparkles, ArrowLeftIcon as ArrowLeft } from "@primer/octicons-react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { initNotifications, showPushNotification } from "@/lib/notifications";
@@ -52,6 +41,9 @@ export function NotificationBell({ userId }: NotificationBellProps) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [summaryView, setSummaryView] = useState(false);
+  const [summary, setSummary] = useState("");
+  const [summaryLoading, setSummaryLoading] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const fetchNotifications = useCallback(async () => {
@@ -159,6 +151,23 @@ export function NotificationBell({ userId }: NotificationBellProps) {
     setUnreadCount((prev) => Math.max(0, prev - ids.length));
   }
 
+  async function summarizeNotifications() {
+    setSummaryView(true);
+    setSummaryLoading(true);
+    try {
+      const res = await fetch("/api/ai/notifications-summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await res.json();
+      setSummary(data.summary || "Couldn't generate a summary.");
+    } catch {
+      setSummary("Something went wrong. Please try again.");
+    } finally {
+      setSummaryLoading(false);
+    }
+  }
+
   function handleNotificationClick(n: Notification) {
     // Mark as read
     if (!n.read) markRead([n.id]);
@@ -194,17 +203,35 @@ export function NotificationBell({ userId }: NotificationBellProps) {
           {/* Header */}
           <div className="flex items-center justify-between border-b border-[#1a1a1a] px-4 py-3">
             <div className="flex items-center gap-2">
+              {summaryView && (
+                <button
+                  onClick={() => setSummaryView(false)}
+                  className="flex h-6 w-6 items-center justify-center rounded-[6px] text-[#555] transition-colors hover:bg-[#1a1a1a] hover:text-white"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                </button>
+              )}
               <span className="text-[14px] font-semibold text-white">
-                Notifications
+                {summaryView ? "AI Summary" : "Notifications"}
               </span>
-              {unreadCount > 0 && (
+              {!summaryView && unreadCount > 0 && (
                 <span className="rounded-full bg-[#de1135]/10 px-2 py-0.5 text-[11px] font-medium text-[#de1135]">
                   {unreadCount} new
                 </span>
               )}
             </div>
             <div className="flex items-center gap-1">
-              {unreadCount > 0 && (
+              {!summaryView && notifications.length > 0 && (
+                <button
+                  onClick={summarizeNotifications}
+                  className="flex items-center gap-1 rounded-[6px] px-2 py-1 text-[11px] text-[#555] transition-colors hover:bg-[#1a1a1a] hover:text-white"
+                  title="Summarize with AI"
+                >
+                  <Sparkles className="h-3 w-3" />
+                  Summarize
+                </button>
+              )}
+              {!summaryView && unreadCount > 0 && (
                 <button
                   onClick={markAllRead}
                   className="flex items-center gap-1 rounded-[6px] px-2 py-1 text-[11px] text-[#555] transition-colors hover:bg-[#1a1a1a] hover:text-white"
@@ -215,7 +242,10 @@ export function NotificationBell({ userId }: NotificationBellProps) {
                 </button>
               )}
               <button
-                onClick={() => setOpen(false)}
+                onClick={() => {
+                  setOpen(false);
+                  setSummaryView(false);
+                }}
                 className="flex h-6 w-6 items-center justify-center rounded-[6px] text-[#555] transition-colors hover:bg-[#1a1a1a] hover:text-white"
               >
                 <X className="h-3.5 w-3.5" />
@@ -223,7 +253,35 @@ export function NotificationBell({ userId }: NotificationBellProps) {
             </div>
           </div>
 
-          {/* Notifications list */}
+          {/* AI Summary view */}
+          {summaryView ? (
+            <div className="max-h-[440px] overflow-auto px-4 py-4">
+              {summaryLoading ? (
+                <div className="flex flex-col items-center justify-center py-12">
+                  <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-[#276ef1]/10">
+                    <Sparkles className="h-5 w-5 text-[#276ef1]" />
+                  </div>
+                  <p className="text-[13px] font-medium text-[#888]">
+                    Summarizing notifications...
+                  </p>
+                  <Loader2 className="mt-2 h-4 w-4 animate-spin text-[#555]" />
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Sparkles className="h-3.5 w-3.5 text-[#276ef1]" />
+                    <span className="text-[11px] text-[#555]">
+                      Powered by Chatterbox AI
+                    </span>
+                  </div>
+                  <div className="rounded-[8px] border border-[#1a1a1a] bg-[#0f0f0f] p-3 text-[13px] leading-[20px] text-[#ccc] whitespace-pre-wrap [&_strong]:text-white [&_strong]:font-semibold">
+                    {summary}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+          /* Notifications list */
           <div className="max-h-[440px] overflow-auto">
             {loading && notifications.length === 0 ? (
               <div className="flex items-center justify-center py-12">
@@ -318,6 +376,7 @@ export function NotificationBell({ userId }: NotificationBellProps) {
               })
             )}
           </div>
+          )}
         </div>
       )}
     </div>

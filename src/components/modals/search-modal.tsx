@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Search, X, Hash, MessageSquare, Sparkles, ArrowRight, Loader2 } from "lucide-react";
+import { SearchIcon as Search, XIcon as X, HashIcon as Hash, CommentDiscussionIcon as MessageSquare, SparklesFillIcon as Sparkles, ArrowRightIcon as ArrowRight, LoopIcon as Loader2 } from "@primer/octicons-react";
 import { Markdown } from "@/components/ui/markdown";
 import { useRouter } from "next/navigation";
 

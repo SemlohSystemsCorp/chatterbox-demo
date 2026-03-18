@@ -14,19 +14,7 @@ import {
   DailyVideo,
   DailyAudio,
 } from "@daily-co/daily-react";
-import {
-  Mic,
-  MicOff,
-  Video,
-  VideoOff,
-  PhoneOff,
-  Monitor,
-  MonitorOff,
-  Users,
-  MessageSquare,
-  Send,
-  X,
-} from "lucide-react";
+import { UnmuteIcon as Mic, MuteIcon as MicOff, DeviceCameraVideoIcon as Video, EyeClosedIcon as VideoOff, NoEntryIcon as PhoneOff, DeviceDesktopIcon as Monitor, ScreenNormalIcon as MonitorOff, PeopleIcon as Users, CommentDiscussionIcon as MessageSquare, PaperAirplaneIcon as Send, XIcon as X } from "@primer/octicons-react";
 
 interface CallData {
   id: string;

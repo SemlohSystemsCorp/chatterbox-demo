@@ -11,7 +11,6 @@ export default function SignupPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirect") || "/dashboard";
-  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -41,7 +40,7 @@ export default function SignupPage() {
     // Store signup data in sessionStorage for the verify page
     sessionStorage.setItem(
       "chatterbox_signup",
-      JSON.stringify({ fullName, email, password })
+      JSON.stringify({ email, password })
     );
 
     setLoading(false);
@@ -99,14 +98,6 @@ export default function SignupPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        <Input
-          id="fullName"
-          label="Full name"
-          placeholder="Enter your full name"
-          value={fullName}
-          onChange={(e) => setFullName(e.target.value)}
-          required
-        />
         <Input
           id="email"
           label="Email"

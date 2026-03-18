@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Check } from "lucide-react";
+import { ArrowLeftIcon as ArrowLeft, CheckIcon as Check } from "@primer/octicons-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 

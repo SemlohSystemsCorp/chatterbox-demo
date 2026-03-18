@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { X, Plus, Trash2 } from "lucide-react";
+import { XIcon as X, PlusIcon as Plus, TrashIcon as Trash2 } from "@primer/octicons-react";
 
 interface Todo {
   id: string;

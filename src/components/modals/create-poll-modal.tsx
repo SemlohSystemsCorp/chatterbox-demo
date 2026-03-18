@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { X, Plus, GripVertical, Trash2 } from "lucide-react";
+import { XIcon as X, PlusIcon as Plus, GrabberIcon as GripVertical, TrashIcon as Trash2 } from "@primer/octicons-react";
 import { Button } from "@/components/ui/button";
 
 interface CreatePollModalProps {

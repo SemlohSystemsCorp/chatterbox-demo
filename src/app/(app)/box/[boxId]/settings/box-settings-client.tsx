@@ -3,29 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  ArrowLeft,
-  Settings,
-  Hash,
-  Lock,
-  Users,
-  CreditCard,
-  Shield,
-  Crown,
-  Trash2,
-  Pencil,
-  Archive,
-  Plus,
-  AlertTriangle,
-  Check,
-  X,
-  Eye,
-  ExternalLink,
-  Zap,
-  Globe,
-  Bell,
-  Link as LinkIcon,
-} from "lucide-react";
+import { ArrowLeftIcon as ArrowLeft, GearIcon as Settings, HashIcon as Hash, LockIcon as Lock, PeopleIcon as Users, CreditCardIcon as CreditCard, ShieldIcon as Shield, TrophyIcon as Crown, TrashIcon as Trash2, PencilIcon as Pencil, ArchiveIcon as Archive, PlusIcon as Plus, AlertFillIcon as AlertTriangle, CheckIcon as Check, XIcon as X, EyeIcon as Eye, LinkExternalIcon as ExternalLink, ZapIcon as Zap, GlobeIcon as Globe, BellIcon as Bell, LinkIcon } from "@primer/octicons-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { TopBar } from "@/components/layout/top-bar";
 import { CreateChannelModal } from "@/components/modals/create-channel-modal";

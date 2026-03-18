@@ -3,17 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  ChevronDown,
-  Check,
-  Plus,
-  UserPlus,
-  Settings,
-  Keyboard,
-  Moon,
-  Sun,
-  Users,
-} from "lucide-react";
+import { ChevronDownIcon as ChevronDown, CheckIcon as Check, PlusIcon as Plus, PersonAddIcon as UserPlus, GearIcon as Settings, CommandPaletteIcon as Keyboard, MoonIcon as Moon, SunIcon as Sun, PeopleIcon as Users } from "@primer/octicons-react";
 import type { BoxData } from "@/lib/chat-helpers";
 import { useSettingsStore } from "@/stores/settings-store";
 

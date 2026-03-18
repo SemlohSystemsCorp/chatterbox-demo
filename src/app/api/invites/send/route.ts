@@ -64,36 +64,17 @@ export async function POST(request: NextRequest) {
   // Get inviter profile
   const { data: profile } = await supabase
     .from("profiles")
-    .select("display_name, email")
+    .select("full_name, email")
     .eq("id", user.id)
     .single();
 
-  const inviterName = profile?.display_name || profile?.email || "Someone";
+  const inviterName = profile?.full_name || profile?.email || "Someone";
 
-  // Create an invite code for this batch
-  const code = crypto.randomBytes(4).toString("hex");
   const expires_at = new Date(
     Date.now() + 7 * 24 * 3600000
   ).toISOString(); // 7 days
 
-  const { error: inviteError } = await supabase.from("invites").insert({
-    box_id,
-    code,
-    created_by: user.id,
-    role: "member",
-    expires_at,
-  });
-
-  if (inviteError) {
-    return NextResponse.json(
-      { error: "Failed to create invite" },
-      { status: 500 }
-    );
-  }
-
-  const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://getchatterbox.app"}/invite/${code}`;
-
-  // Send emails
+  // Send emails — create one invite per email with the email stored
   const results: { email: string; success: boolean }[] = [];
 
   for (const email of emails) {
@@ -102,6 +83,24 @@ export async function POST(request: NextRequest) {
       results.push({ email: trimmed, success: false });
       continue;
     }
+
+    const code = crypto.randomBytes(4).toString("hex");
+
+    const { error: inviteError } = await supabase.from("invites").insert({
+      box_id,
+      code,
+      created_by: user.id,
+      email: trimmed,
+      role: "member",
+      expires_at,
+    });
+
+    if (inviteError) {
+      results.push({ email: trimmed, success: false });
+      continue;
+    }
+
+    const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://getchatterbox.app"}/invite/${code}`;
 
     try {
       await resend.emails.send({

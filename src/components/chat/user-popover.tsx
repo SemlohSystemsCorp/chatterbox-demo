@@ -2,16 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import {
-  Settings,
-  MessageSquare,
-  UserPlus,
-  LogOut,
-  DoorOpen,
-  Smile,
-  X,
-  Clock,
-} from "lucide-react";
+import { GearIcon as Settings, CommentDiscussionIcon as MessageSquare, PersonAddIcon as UserPlus, SignOutIcon as LogOut, SignOutIcon as DoorOpen, SmileyIcon as Smile, XIcon as X, ClockIcon as Clock } from "@primer/octicons-react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { getInitials, type UserData } from "@/lib/chat-helpers";

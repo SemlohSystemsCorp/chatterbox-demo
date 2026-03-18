@@ -1,17 +1,6 @@
 "use client";
 
-import {
-  Smile,
-  Pencil,
-  Trash2,
-  Reply,
-  MoreHorizontal,
-  Languages,
-  Phone,
-  PhoneOff,
-  Pin,
-  PinOff,
-} from "lucide-react";
+import { SmileyIcon as Smile, PencilIcon as Pencil, TrashIcon as Trash2, ReplyIcon as Reply, KebabHorizontalIcon as MoreHorizontal, GlobeIcon as Languages, DeviceMobileIcon as Phone, NoEntryIcon as PhoneOff, PinIcon as Pin, PinSlashIcon as PinOff } from "@primer/octicons-react";
 import { segmentContent } from "@/components/ui/markdown";
 import { EmojiPicker } from "@/components/emoji-picker";
 import { getMediaType, type MediaType } from "@/components/modals/media-preview-modal";

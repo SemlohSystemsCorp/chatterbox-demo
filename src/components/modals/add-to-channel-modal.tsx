@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { X, Search, Check, UserPlus, Lock, Crown, Shield } from "lucide-react";
+import { XIcon as X, SearchIcon as Search, CheckIcon as Check, PersonAddIcon as UserPlus, LockIcon as Lock, TrophyIcon as Crown, ShieldIcon as Shield } from "@primer/octicons-react";
 import { Button } from "@/components/ui/button";
 
 interface MemberData {

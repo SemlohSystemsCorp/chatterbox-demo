@@ -1,17 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import {
-  X,
-  Loader2,
-  AlertTriangle,
-  CheckSquare,
-  HelpCircle,
-  AtSign,
-  Star,
-  Zap,
-  Newspaper,
-} from "lucide-react";
+import { XIcon as X, LoopIcon as Loader2, AlertFillIcon as AlertTriangle, CheckboxIcon as CheckSquare, QuestionIcon as HelpCircle, MentionIcon as AtSign, StarIcon as Star, ZapIcon as Zap, NoteIcon as Newspaper } from "@primer/octicons-react";
 import { Markdown } from "@/components/ui/markdown";
 
 interface Highlight {

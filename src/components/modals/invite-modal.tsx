@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { X, Copy, Check, Link as LinkIcon } from "lucide-react";
+import { XIcon as X, CopyIcon as Copy, CheckIcon as Check, LinkIcon, MailIcon as Mail, PlusIcon as Plus, LoopIcon as Loader2 } from "@primer/octicons-react";
 import { Button } from "@/components/ui/button";
 
 interface InviteModalProps {
@@ -16,13 +16,26 @@ export function InviteModal({ open, onClose, boxId, boxName }: InviteModalProps)
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
+
+  // Email invite state
+  const [emailInput, setEmailInput] = useState("");
+  const [emails, setEmails] = useState<string[]>([]);
+  const [sending, setSending] = useState(false);
+  const [sendResult, setSendResult] = useState<{ sent: number; total: number } | null>(null);
+  const [sendError, setSendError] = useState("");
+
   const backdropRef = useRef<HTMLDivElement>(null);
+  const emailInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (open) {
       setInviteCode(null);
       setCopied(false);
       setError("");
+      setEmailInput("");
+      setEmails([]);
+      setSendResult(null);
+      setSendError("");
       generateInvite();
     }
   }, [open]);
@@ -62,16 +75,77 @@ export function InviteModal({ open, onClose, boxId, boxName }: InviteModalProps)
 
   function handleCopy() {
     if (!inviteCode) return;
-    const link = `${window.location.origin}/join?code=${inviteCode}`;
+    const link = `https://getchatterbox.app/invite/${inviteCode}`;
     navigator.clipboard.writeText(link);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
 
+  function addEmail() {
+    const trimmed = emailInput.trim().toLowerCase();
+    if (!trimmed) return;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      setSendError("Invalid email address");
+      return;
+    }
+    if (emails.includes(trimmed)) {
+      setSendError("Email already added");
+      return;
+    }
+    if (emails.length >= 10) {
+      setSendError("Maximum 10 emails at once");
+      return;
+    }
+    setEmails((prev) => [...prev, trimmed]);
+    setEmailInput("");
+    setSendError("");
+    emailInputRef.current?.focus();
+  }
+
+  function removeEmail(email: string) {
+    setEmails((prev) => prev.filter((e) => e !== email));
+  }
+
+  function handleEmailKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      addEmail();
+    }
+    if (e.key === "Backspace" && !emailInput && emails.length > 0) {
+      setEmails((prev) => prev.slice(0, -1));
+    }
+  }
+
+  async function handleSendEmails() {
+    if (emails.length === 0) return;
+    setSending(true);
+    setSendError("");
+    setSendResult(null);
+
+    try {
+      const res = await fetch("/api/invites/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ box_id: boxId, emails }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setSendError(data.error || "Failed to send invites");
+      } else {
+        setSendResult({ sent: data.sent, total: data.total });
+        setEmails([]);
+        setEmailInput("");
+      }
+    } catch {
+      setSendError("Something went wrong");
+    }
+    setSending(false);
+  }
+
   if (!open) return null;
 
   const inviteLink = inviteCode
-    ? `${typeof window !== "undefined" ? window.location.origin : ""}/join?code=${inviteCode}`
+    ? `https://getchatterbox.app/invite/${inviteCode}`
     : "";
 
   return (
@@ -82,7 +156,7 @@ export function InviteModal({ open, onClose, boxId, boxName }: InviteModalProps)
         if (e.target === backdropRef.current) onClose();
       }}
     >
-      <div className="w-full max-w-[440px] rounded-[12px] border border-[#1a1a1a] bg-[#111] shadow-[0_16px_64px_rgba(0,0,0,0.5)]">
+      <div className="w-full max-w-[480px] rounded-[12px] border border-[#1a1a1a] bg-[#111] shadow-[0_16px_64px_rgba(0,0,0,0.5)]">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-[#1a1a1a] px-5 py-4">
           <h2 className="text-[16px] font-bold text-white">
@@ -97,9 +171,9 @@ export function InviteModal({ open, onClose, boxId, boxName }: InviteModalProps)
         </div>
 
         {/* Body */}
-        <div className="px-5 py-5">
+        <div className="px-5 py-5 space-y-5">
           {error && (
-            <div className="mb-4 rounded-[8px] bg-red-500/10 px-3 py-2 text-[13px] text-red-400">
+            <div className="rounded-[8px] bg-red-500/10 px-3 py-2 text-[13px] text-red-400">
               {error}
             </div>
           )}
@@ -110,43 +184,130 @@ export function InviteModal({ open, onClose, boxId, boxName }: InviteModalProps)
             </div>
           ) : inviteCode ? (
             <>
-              <p className="mb-3 text-[13px] text-[#666]">
-                Share this link to invite people. Expires in 7 days.
-              </p>
-              <div className="flex items-center gap-2">
-                <div className="flex flex-1 items-center gap-2 rounded-[8px] bg-[#0a0a0a] px-3 py-2.5">
-                  <LinkIcon className="h-3.5 w-3.5 shrink-0 text-[#555]" />
-                  <span className="truncate text-[13px] text-[#aaa]">
-                    {inviteLink}
-                  </span>
+              {/* Email invite section */}
+              <div>
+                <div className="mb-2 flex items-center gap-2">
+                  <Mail className="h-3.5 w-3.5 text-[#555]" />
+                  <span className="text-[13px] font-medium text-white">Invite by email</span>
                 </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={handleCopy}
-                  className="shrink-0"
-                >
-                  {copied ? (
-                    <>
-                      <Check className="mr-1 h-3.5 w-3.5" />
-                      Copied
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="mr-1 h-3.5 w-3.5" />
-                      Copy
-                    </>
+
+                {/* Email chips + input */}
+                <div className="rounded-[8px] border border-[#1a1a1a] bg-[#0a0a0a] p-2">
+                  {emails.length > 0 && (
+                    <div className="mb-2 flex flex-wrap gap-1.5">
+                      {emails.map((email) => (
+                        <span
+                          key={email}
+                          className="flex items-center gap-1 rounded-full bg-[#1a1a1a] px-2.5 py-1 text-[12px] text-[#ccc]"
+                        >
+                          {email}
+                          <button
+                            onClick={() => removeEmail(email)}
+                            className="ml-0.5 text-[#555] hover:text-white"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
                   )}
-                </Button>
+                  <div className="flex items-center gap-2">
+                    <input
+                      ref={emailInputRef}
+                      type="email"
+                      value={emailInput}
+                      onChange={(e) => {
+                        setEmailInput(e.target.value);
+                        setSendError("");
+                      }}
+                      onKeyDown={handleEmailKeyDown}
+                      placeholder={emails.length > 0 ? "Add another email..." : "name@example.com"}
+                      className="flex-1 bg-transparent text-[13px] text-white placeholder:text-[#444] focus:outline-none"
+                    />
+                    {emailInput.trim() && (
+                      <button
+                        onClick={addEmail}
+                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[4px] text-[#555] transition-colors hover:bg-[#1a1a1a] hover:text-white"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {sendError && (
+                  <p className="mt-1.5 text-[12px] text-red-400">{sendError}</p>
+                )}
+
+                {sendResult && (
+                  <p className="mt-1.5 text-[12px] text-[#22c55e]">
+                    {sendResult.sent === sendResult.total
+                      ? `${sendResult.sent} invite${sendResult.sent !== 1 ? "s" : ""} sent!`
+                      : `${sendResult.sent} of ${sendResult.total} sent`}
+                  </p>
+                )}
+
+                {emails.length > 0 && (
+                  <Button
+                    onClick={handleSendEmails}
+                    disabled={sending}
+                    size="sm"
+                    className="mt-2.5 w-full"
+                  >
+                    {sending ? (
+                      <>
+                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <Mail className="mr-1.5 h-3.5 w-3.5" />
+                        Send {emails.length} invite{emails.length !== 1 ? "s" : ""}
+                      </>
+                    )}
+                  </Button>
+                )}
               </div>
 
-              <div className="mt-4 rounded-[8px] bg-[#0a0a0a] px-3 py-2.5">
-                <p className="text-[12px] text-[#555]">
-                  Invite code:{" "}
-                  <span className="font-mono font-medium text-white">
-                    {inviteCode}
-                  </span>
+              {/* Divider */}
+              <div className="flex items-center gap-3">
+                <div className="h-px flex-1 bg-[#1a1a1a]" />
+                <span className="text-[11px] text-[#444]">or share link</span>
+                <div className="h-px flex-1 bg-[#1a1a1a]" />
+              </div>
+
+              {/* Link section */}
+              <div>
+                <p className="mb-2 text-[12px] text-[#555]">
+                  Anyone with this link can join. Expires in 7 days.
                 </p>
+                <div className="flex items-center gap-2">
+                  <div className="flex flex-1 items-center gap-2 rounded-[8px] bg-[#0a0a0a] px-3 py-2.5">
+                    <LinkIcon className="h-3.5 w-3.5 shrink-0 text-[#555]" />
+                    <span className="truncate text-[12px] text-[#aaa]">
+                      {inviteLink}
+                    </span>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    onClick={handleCopy}
+                    className="shrink-0"
+                  >
+                    {copied ? (
+                      <>
+                        <Check className="mr-1 h-3.5 w-3.5" />
+                        Copied
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="mr-1 h-3.5 w-3.5" />
+                        Copy
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
             </>
           ) : null}

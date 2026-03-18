@@ -2,18 +2,28 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { MessageSquare, ArrowRight, AtSign, Check, Pencil } from "lucide-react";
+import Link from "next/link";
+import { ArrowRightIcon as ArrowRight, MentionIcon as AtSign, CheckIcon as Check, PencilIcon as Pencil, MailIcon as Mail, PeopleIcon as Users } from "@primer/octicons-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createClient } from "@/lib/supabase/client";
 
-type Step = "loading" | "welcome" | "confirm" | "username" | "create-box" | "invite";
+type Step = "loading" | "full-name" | "confirm" | "username" | "invites" | "create-box";
 
 interface Box {
   id: string;
   short_id: string;
   name: string;
   slug: string;
+}
+
+interface PendingInvite {
+  code: string;
+  box_name: string;
+  box_icon_url: string | null;
+  role: string;
+  inviter_name: string | null;
+  member_count: number;
 }
 
 interface UserInfo {
@@ -27,15 +37,13 @@ export default function OnboardingPage() {
   const router = useRouter();
   const [step, setStep] = useState<Step>("loading");
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
-  const [displayName, setDisplayName] = useState("");
+  const [fullName, setFullName] = useState("");
   const [username, setUsername] = useState("");
   const [boxName, setBoxName] = useState("");
-  const [inviteEmails, setInviteEmails] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [createdBox, setCreatedBox] = useState<Box | null>(null);
-  const [inviteLoading, setInviteLoading] = useState(false);
-  const [inviteSuccess, setInviteSuccess] = useState(false);
+  const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([]);
+  const [joiningCode, setJoiningCode] = useState<string | null>(null);
 
   // Fetch user info on mount
   useEffect(() => {
@@ -49,38 +57,79 @@ export default function OnboardingPage() {
 
       const provider = user.app_metadata?.provider;
       const isOAuth = provider === "google" || provider === "github" || provider === "apple";
-      const fullName = (user.user_metadata?.full_name as string) || "";
+      const name = (user.user_metadata?.full_name as string) || "";
       const avatarUrl = (user.user_metadata?.avatar_url as string) || null;
 
       setUserInfo({
-        fullName,
+        fullName: name,
         email: user.email ?? "",
         avatarUrl,
         isOAuth,
       });
-      setDisplayName(fullName);
+      setFullName(name);
 
-      // OAuth users go to confirm step, email users go to welcome
-      setStep(isOAuth ? "confirm" : "welcome");
+      // OAuth users already have a name from the provider → go to confirm step
+      // Email users need to enter their name first
+      setStep(isOAuth ? "confirm" : "full-name");
     }
     loadUser();
   }, [router]);
+
+  async function handleSetFullName() {
+    if (!fullName.trim()) return;
+    setError("");
+    setLoading(true);
+
+    try {
+      const supabase = createClient();
+      const { error: updateError } = await supabase.auth.updateUser({
+        data: { full_name: fullName.trim() },
+      });
+
+      if (updateError) {
+        setError(updateError.message);
+        setLoading(false);
+        return;
+      }
+
+      // Also update the profile table
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase
+          .from("profiles")
+          .update({ full_name: fullName.trim() })
+          .eq("id", user.id);
+      }
+
+      setLoading(false);
+      setStep("username");
+    } catch {
+      setError("Something went wrong");
+      setLoading(false);
+    }
+  }
 
   async function handleConfirm() {
     setError("");
     setLoading(true);
 
     try {
-      // Update display name if changed
-      if (displayName.trim() && displayName.trim() !== userInfo?.fullName) {
+      if (fullName.trim() && fullName.trim() !== userInfo?.fullName) {
         const supabase = createClient();
         await supabase.auth.updateUser({
-          data: { full_name: displayName.trim() },
+          data: { full_name: fullName.trim() },
         });
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          await supabase
+            .from("profiles")
+            .update({ full_name: fullName.trim() })
+            .eq("id", user.id);
+        }
       }
 
       setLoading(false);
-      setStep("create-box");
+      setStep("username");
     } catch {
       setError("Something went wrong");
       setLoading(false);
@@ -108,52 +157,63 @@ export default function OnboardingPage() {
       }
 
       setLoading(false);
-      setStep("create-box");
+
+      // Check for pending invites for this email
+      await checkPendingInvites();
     } catch {
       setError("Something went wrong");
       setLoading(false);
     }
   }
 
-  async function handleSendInvites() {
-    if (!inviteEmails.trim() || !createdBox) return;
-    setError("");
-    setInviteLoading(true);
-
-    const emails = inviteEmails
-      .split(",")
-      .map((e) => e.trim().toLowerCase())
-      .filter(Boolean);
-
-    if (emails.length === 0) {
-      setError("Enter at least one email address");
-      setInviteLoading(false);
+  async function checkPendingInvites() {
+    if (!userInfo?.email) {
+      setStep("create-box");
       return;
     }
 
     try {
-      const res = await fetch("/api/invites/send", {
+      const res = await fetch(`/api/invites/pending?email=${encodeURIComponent(userInfo.email)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.invites && data.invites.length > 0) {
+          setPendingInvites(data.invites);
+          setStep("invites");
+          return;
+        }
+      }
+    } catch {
+      // If check fails, just go to create box
+    }
+
+    setStep("create-box");
+  }
+
+  async function handleJoinInvite(code: string) {
+    setError("");
+    setJoiningCode(code);
+
+    try {
+      const res = await fetch("/api/invites/join", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ box_id: createdBox.id, emails }),
+        body: JSON.stringify({ code }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || "Failed to send invites");
-        setInviteLoading(false);
+        setError(data.error || "Failed to join");
+        setJoiningCode(null);
         return;
       }
 
-      setInviteSuccess(true);
-      setInviteLoading(false);
-
-      // Auto-navigate after a short delay
-      setTimeout(handleFinish, 1500);
+      // Go to the box
+      router.push(`/box/${data.box.short_id}`);
+      router.refresh();
     } catch {
       setError("Something went wrong");
-      setInviteLoading(false);
+      setJoiningCode(null);
     }
   }
 
@@ -177,25 +237,36 @@ export default function OnboardingPage() {
         return;
       }
 
-      setCreatedBox(data.box);
       setLoading(false);
-      setStep("invite");
+      // Go right to the box
+      router.push(`/box/${data.box.short_id}`);
+      router.refresh();
     } catch {
       setError("Something went wrong");
       setLoading(false);
     }
   }
 
-  function handleFinish() {
-    if (createdBox) {
-      router.push(`/box/${createdBox.short_id}`);
-    } else {
-      router.push("/dashboard");
-    }
+  function goToDashboard() {
+    router.push("/dashboard");
     router.refresh();
   }
 
   const isValidUsername = /^[a-zA-Z0-9._-]{2,30}$/.test(username.trim());
+  const totalSteps = 4;
+
+  function ProgressBar({ current }: { current: number }) {
+    return (
+      <div className="mb-8 flex gap-2">
+        {Array.from({ length: totalSteps }).map((_, i) => (
+          <div
+            key={i}
+            className={`h-1 flex-1 rounded-full ${i < current ? "bg-white" : "bg-[#2a2a2a]"}`}
+          />
+        ))}
+      </div>
+    );
+  }
 
   // ── Loading ──
   if (step === "loading") {
@@ -209,29 +280,48 @@ export default function OnboardingPage() {
     );
   }
 
-  // ── Welcome (email signup users) ──
-  if (step === "welcome") {
+  // ── Full Name (email signup users) ──
+  if (step === "full-name") {
     return (
-      <div className="text-center">
-        <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-white">
-          <MessageSquare className="h-8 w-8 text-black" />
-        </div>
-        <h1 className="mb-3 text-[36px] font-bold leading-[44px] tracking-tight text-white">
-          Welcome to Chatterbox
+      <div>
+        <ProgressBar current={1} />
+
+        <h1 className="mb-2 text-[36px] font-bold leading-[44px] tracking-tight text-white">
+          What&apos;s your name?
         </h1>
-        <p className="mx-auto mb-10 max-w-sm text-[16px] leading-[24px] text-[#888]">
-          Let&apos;s set up your workspace. It only takes a minute.
+        <p className="mb-8 text-[16px] leading-[24px] text-[#888]">
+          This is how you&apos;ll appear to others in Chatterbox.
         </p>
-        <Button onClick={() => setStep("username")} className="w-full">
-          Get started
-          <ArrowRight className="ml-2 h-4 w-4" />
-        </Button>
-        <button
-          onClick={handleFinish}
-          className="mt-4 text-[14px] text-[#888] underline underline-offset-2 hover:text-white"
-        >
-          Skip for now
-        </button>
+
+        <div className="space-y-4">
+          <Input
+            id="fullName"
+            label="Full name"
+            placeholder="Enter your full name"
+            value={fullName}
+            onChange={(e) => {
+              setFullName(e.target.value);
+              setError("");
+            }}
+            autoFocus
+          />
+
+          {error && (
+            <p className="text-[14px] text-[#de1135]">{error}</p>
+          )}
+
+          <div className="pt-2">
+            <Button
+              onClick={handleSetFullName}
+              loading={loading}
+              disabled={!fullName.trim()}
+              className="w-full"
+            >
+              Continue
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -240,11 +330,7 @@ export default function OnboardingPage() {
   if (step === "confirm") {
     return (
       <div>
-        {/* Progress */}
-        <div className="mb-8 flex gap-2">
-          <div className="h-1 flex-1 rounded-full bg-white" />
-          <div className="h-1 flex-1 rounded-full bg-[#2a2a2a]" />
-        </div>
+        <ProgressBar current={1} />
 
         <h1 className="mb-2 text-[36px] font-bold leading-[44px] tracking-tight text-white">
           Confirm your info
@@ -291,8 +377,8 @@ export default function OnboardingPage() {
               <input
                 id="displayName"
                 type="text"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
                 className="h-10 w-full rounded-[8px] border border-[#2a2a2a] bg-[#111] px-3 pr-9 text-[14px] text-white placeholder:text-[#555] focus:border-[#444] focus:outline-none"
               />
               <Pencil className="absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#555]" />
@@ -305,34 +391,22 @@ export default function OnboardingPage() {
             <Button
               onClick={handleConfirm}
               loading={loading}
-              disabled={!displayName.trim()}
+              disabled={!fullName.trim()}
               className="w-full"
             >
               Looks good, continue
             </Button>
           </div>
         </div>
-
-        <button
-          onClick={handleFinish}
-          className="mt-6 text-[14px] text-[#888] underline underline-offset-2 hover:text-white"
-        >
-          Skip for now
-        </button>
       </div>
     );
   }
 
-  // ── Choose Username (email signup users) ──
+  // ── Choose Username ──
   if (step === "username") {
     return (
       <div>
-        {/* Progress */}
-        <div className="mb-8 flex gap-2">
-          <div className="h-1 flex-1 rounded-full bg-white" />
-          <div className="h-1 flex-1 rounded-full bg-[#2a2a2a]" />
-          <div className="h-1 flex-1 rounded-full bg-[#2a2a2a]" />
-        </div>
+        <ProgressBar current={2} />
 
         <h1 className="mb-2 text-[36px] font-bold leading-[44px] tracking-tight text-white">
           Choose a username
@@ -391,133 +465,158 @@ export default function OnboardingPage() {
         </div>
 
         <button
-          onClick={() => setStep("create-box")}
+          onClick={goToDashboard}
           className="mt-6 text-[14px] text-[#888] underline underline-offset-2 hover:text-white"
         >
-          Skip for now
+          Skip, go to dashboard
         </button>
+      </div>
+    );
+  }
+
+  // ── Pending Invites ──
+  if (step === "invites") {
+    return (
+      <div>
+        <ProgressBar current={3} />
+
+        <h1 className="mb-2 text-[36px] font-bold leading-[44px] tracking-tight text-white">
+          You&apos;ve been invited
+        </h1>
+        <p className="mb-8 text-[16px] leading-[24px] text-[#888]">
+          You have pending invites to join these workspaces.
+        </p>
+
+        <div className="space-y-3">
+          {pendingInvites.map((invite) => {
+            const initials = invite.box_name
+              .split(" ")
+              .map((w) => w[0])
+              .join("")
+              .slice(0, 2)
+              .toUpperCase();
+            const isJoining = joiningCode === invite.code;
+
+            return (
+              <div
+                key={invite.code}
+                className="flex items-center gap-4 rounded-[12px] border border-[#1a1a1a] bg-[#0f0f0f] p-4"
+              >
+                {invite.box_icon_url ? (
+                  <img
+                    src={invite.box_icon_url}
+                    alt=""
+                    className="h-11 w-11 shrink-0 rounded-[10px]"
+                  />
+                ) : (
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] bg-white text-[13px] font-bold text-black">
+                    {initials}
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-[15px] font-semibold text-white">
+                    {invite.box_name}
+                  </div>
+                  <div className="mt-0.5 flex items-center gap-2 text-[12px] text-[#555]">
+                    <Users className="h-3 w-3" />
+                    {invite.member_count} member{invite.member_count !== 1 ? "s" : ""}
+                    {invite.inviter_name && (
+                      <>
+                        <span className="text-[#333]">·</span>
+                        <span>Invited by {invite.inviter_name}</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+                <Button
+                  onClick={() => handleJoinInvite(invite.code)}
+                  loading={isJoining}
+                  disabled={joiningCode !== null}
+                  className="shrink-0"
+                >
+                  Join
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+
+        {error && (
+          <p className="mt-4 text-[14px] text-[#de1135]">{error}</p>
+        )}
+
+        <div className="mt-6 flex items-center gap-3">
+          <button
+            onClick={() => setStep("create-box")}
+            className="text-[14px] text-[#888] underline underline-offset-2 hover:text-white"
+          >
+            Create a new Box instead
+          </button>
+          <span className="text-[#333]">·</span>
+          <button
+            onClick={goToDashboard}
+            className="text-[14px] text-[#888] underline underline-offset-2 hover:text-white"
+          >
+            Go to dashboard
+          </button>
+        </div>
       </div>
     );
   }
 
   // ── Create Box ──
-  if (step === "create-box") {
-    const totalSteps = userInfo?.isOAuth ? 2 : 3;
-    return (
-      <div>
-        {/* Progress */}
-        <div className="mb-8 flex gap-2">
-          {Array.from({ length: totalSteps }).map((_, i) => (
-            <div
-              key={i}
-              className={`h-1 flex-1 rounded-full ${i < totalSteps - 1 ? "bg-white" : "bg-[#2a2a2a]"}`}
-            />
-          ))}
-        </div>
-
-        <h1 className="mb-2 text-[36px] font-bold leading-[44px] tracking-tight text-white">
-          Create your first Box
-        </h1>
-        <p className="mb-8 text-[16px] leading-[24px] text-[#888]">
-          Boxes are workspaces for your team. You can create more later.
-        </p>
-
-        <div className="space-y-4">
-          <Input
-            id="boxName"
-            label="Workspace name"
-            placeholder="e.g. Acme Corp, Design Team"
-            value={boxName}
-            onChange={(e) => setBoxName(e.target.value)}
-            autoFocus
-          />
-
-          {error && (
-            <p className="text-[14px] text-[#de1135]">{error}</p>
-          )}
-
-          <div className="pt-2">
-            <Button
-              onClick={handleCreateBox}
-              loading={loading}
-              disabled={!boxName.trim()}
-              className="w-full"
-            >
-              Create Box
-            </Button>
-          </div>
-        </div>
-
-        <button
-          onClick={handleFinish}
-          className="mt-6 text-[14px] text-[#888] underline underline-offset-2 hover:text-white"
-        >
-          Skip for now
-        </button>
-      </div>
-    );
-  }
-
-  // ── Invite ──
   return (
     <div>
-      {/* Progress */}
-      <div className="mb-8 flex gap-2">
-        {Array.from({ length: userInfo?.isOAuth ? 2 : 3 }).map((_, i) => (
-          <div key={i} className="h-1 flex-1 rounded-full bg-white" />
-        ))}
-      </div>
+      <ProgressBar current={3} />
 
       <h1 className="mb-2 text-[36px] font-bold leading-[44px] tracking-tight text-white">
-        Invite your team
+        Create your first Box
       </h1>
       <p className="mb-8 text-[16px] leading-[24px] text-[#888]">
-        Chatterbox is better with others. Add teammates by email.
+        Boxes are workspaces for your team. You can create more later.
       </p>
 
-      {inviteSuccess ? (
-        <div className="rounded-[12px] border border-[#2a2a2a] bg-[#0a0a0a] p-6 text-center">
-          <p className="text-[16px] font-medium text-white">
-            Invites sent!
-          </p>
-          <p className="mt-1 text-[14px] text-[#888]">
-            Redirecting to your workspace...
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          <Input
-            id="inviteEmails"
-            label="Email addresses"
-            placeholder="name@company.com, name@company.com"
-            value={inviteEmails}
-            onChange={(e) => setInviteEmails(e.target.value)}
-            autoFocus
-          />
+      <div className="space-y-4">
+        <Input
+          id="boxName"
+          label="Workspace name"
+          placeholder="e.g. Acme Corp, Design Team"
+          value={boxName}
+          onChange={(e) => setBoxName(e.target.value)}
+          autoFocus
+        />
 
-          {error && (
-            <p className="text-[14px] text-[#de1135]">{error}</p>
-          )}
+        {error && (
+          <p className="text-[14px] text-[#de1135]">{error}</p>
+        )}
 
-          <div className="flex gap-3 pt-2">
-            <Button
-              variant="secondary"
-              onClick={handleFinish}
-              className="flex-1"
-            >
-              Skip
-            </Button>
-            <Button
-              onClick={handleSendInvites}
-              loading={inviteLoading}
-              disabled={!inviteEmails.trim()}
-              className="flex-1"
-            >
-              Send invites
-            </Button>
-          </div>
+        <div className="pt-2">
+          <Button
+            onClick={handleCreateBox}
+            loading={loading}
+            disabled={!boxName.trim()}
+            className="w-full"
+          >
+            Create Box
+          </Button>
         </div>
-      )}
+      </div>
+
+      <div className="mt-6 flex items-center gap-3">
+        <Link
+          href="/join"
+          className="text-[14px] text-[#888] underline underline-offset-2 hover:text-white"
+        >
+          Join an existing Box
+        </Link>
+        <span className="text-[#333]">·</span>
+        <button
+          onClick={goToDashboard}
+          className="text-[14px] text-[#888] underline underline-offset-2 hover:text-white"
+        >
+          Skip, go to dashboard
+        </button>
+      </div>
     </div>
   );
 }

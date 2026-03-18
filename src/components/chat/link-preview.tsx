@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { ExternalLink, Play } from "lucide-react";
+import { LinkExternalIcon as ExternalLink, PlayIcon as Play } from "@primer/octicons-react";
 import { Markdown } from "@/components/ui/markdown";
 
 // ── Types ──

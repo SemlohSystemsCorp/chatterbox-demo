@@ -2,24 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef } from "react";
-import {
-  MessageSquare,
-  Search,
-  Bell,
-  Sparkles,
-  Video,
-  Shield,
-  ArrowRight,
-  Globe,
-  Box,
-  Zap,
-  Users,
-  Hash,
-  Reply,
-  SmilePlus,
-  ChevronRight,
-  Check,
-} from "lucide-react";
+import { CommentDiscussionIcon as MessageSquare, SearchIcon as Search, BellIcon as Bell, SparklesFillIcon as Sparkles, DeviceCameraVideoIcon as Video, ShieldIcon as Shield, ArrowRightIcon as ArrowRight, GlobeIcon as Globe, PackageIcon as Box, ZapIcon as Zap, PeopleIcon as Users, HashIcon as Hash, ReplyIcon as Reply, SmileyGrinIcon as SmilePlus, ChevronRightIcon as ChevronRight, CheckIcon as Check } from "@primer/octicons-react";
 import Image from "next/image";
 import {
   MarketingNav,

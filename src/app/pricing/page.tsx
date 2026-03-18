@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Check, ArrowRight, Minus } from "lucide-react";
+import { CheckIcon as Check, ArrowRightIcon as ArrowRight, DashIcon as Minus } from "@primer/octicons-react";
 import {
   MarketingNav,
   MarketingFooter,

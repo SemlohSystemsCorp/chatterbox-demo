@@ -18,7 +18,7 @@ export default function LoginPage() {
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirect") || "/dashboard";
   const urlError = searchParams.get("error");
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -35,6 +35,32 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
     setLoading(true);
+
+    let email = identifier.trim();
+
+    // If the identifier doesn't look like an email, resolve it as a username
+    if (!email.includes("@")) {
+      try {
+        const res = await fetch("/api/auth/resolve-username", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username: email }),
+        });
+
+        if (!res.ok) {
+          setError("No account found with that username");
+          setLoading(false);
+          return;
+        }
+
+        const data = await res.json();
+        email = data.email;
+      } catch {
+        setError("Something went wrong");
+        setLoading(false);
+        return;
+      }
+    }
 
     const supabase = createClient();
     const { error: signInError } = await supabase.auth.signInWithPassword({
@@ -103,12 +129,12 @@ export default function LoginPage() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <Input
-          id="email"
-          label="Email"
-          type="email"
-          placeholder="Enter your email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          id="identifier"
+          label="Email or username"
+          type="text"
+          placeholder="Enter your email or username"
+          value={identifier}
+          onChange={(e) => setIdentifier(e.target.value)}
           required
         />
         <Input

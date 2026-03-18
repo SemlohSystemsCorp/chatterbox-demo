@@ -1,20 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import {
-  MessageSquare,
-  X,
-  MapPin,
-  Briefcase,
-  Globe,
-  Clock,
-  Calendar,
-  Circle,
-  Loader2,
-  User,
-  Phone,
-  Mail,
-} from "lucide-react";
+import { CommentDiscussionIcon as MessageSquare, XIcon as X, LocationIcon as MapPin, BriefcaseIcon as Briefcase, GlobeIcon as Globe, ClockIcon as Clock, CalendarIcon as Calendar, CircleIcon as Circle, LoopIcon as Loader2, PersonIcon as User, DeviceMobileIcon as Phone, MailIcon as Mail } from "@primer/octicons-react";
 import { useRouter } from "next/navigation";
 import { getInitials, type SenderData } from "@/lib/chat-helpers";
 

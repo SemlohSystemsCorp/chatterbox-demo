@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Settings, LogOut } from "lucide-react";
+import { GearIcon as Settings, SignOutIcon as LogOut } from "@primer/octicons-react";
 import { createClient } from "@/lib/supabase/client";
 
 interface UserPanelProps {

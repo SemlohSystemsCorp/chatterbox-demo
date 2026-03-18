@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Wand2, Loader2, Undo2 } from "lucide-react";
+import { SparkleIcon as Wand2, LoopIcon as Loader2, UndoIcon as Undo2 } from "@primer/octicons-react";
 
 interface ToneAdjusterProps {
   text: string;

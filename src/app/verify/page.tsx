@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeftIcon as ArrowLeft } from "@primer/octicons-react";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 
@@ -13,7 +13,6 @@ export default function VerifyPage() {
   const [verifying, setVerifying] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(60);
   const [signupData, setSignupData] = useState<{
-    fullName: string;
     email: string;
     password: string;
   } | null>(null);
@@ -122,7 +121,6 @@ export default function VerifyPage() {
         password: signupData.password,
         options: {
           data: {
-            full_name: signupData.fullName,
             email_verified: true,
           },
           emailRedirectTo: `${window.location.origin}/api/auth/callback`,
@@ -155,7 +153,7 @@ export default function VerifyPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: signupData.email,
-          name: signupData.fullName,
+          name: "",
         }),
       }).catch(() => {});
 

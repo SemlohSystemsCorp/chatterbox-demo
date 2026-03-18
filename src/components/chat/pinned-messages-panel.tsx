@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Pin, X, Loader2 } from "lucide-react";
+import { PinIcon as Pin, XIcon as X, LoopIcon as Loader2 } from "@primer/octicons-react";
 import { Markdown, segmentContent } from "@/components/ui/markdown";
 import { getMediaType } from "@/components/modals/media-preview-modal";
 import { formatTime, formatDate, getInitials } from "@/lib/chat-helpers";
