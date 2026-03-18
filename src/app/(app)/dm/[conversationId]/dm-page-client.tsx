@@ -1,19 +1,11 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import {
-  ChevronDown,
-  X,
-  MessageSquare,
-  Search,
-  Phone,
-  Bookmark,
-  ListTodo,
-  User,
-} from "lucide-react";
+import { ChevronDownIcon as ChevronDown, XIcon as X, CommentDiscussionIcon as MessageSquare, SearchIcon as Search, DeviceMobileIcon as Phone, BookmarkIcon as Bookmark, TasklistIcon as ListTodo, PersonIcon as User } from "@primer/octicons-react";
 import { useRouter } from "next/navigation";
 import { CreateChannelModal } from "@/components/modals/create-channel-modal";
 import { InviteModal } from "@/components/modals/invite-modal";
+import { GroupDmModal } from "@/components/modals/group-dm-modal";
 import { SearchModal } from "@/components/modals/search-modal";
 import { ChatSidebar, type SidebarCall, type SidebarConversation } from "@/components/chat/chat-sidebar";
 import { MessageComposer } from "@/components/chat/message-composer";
@@ -126,6 +118,7 @@ export function DmPageClient({
   const [messages, setMessages] = useState<MessageData[]>(initialMessages);
   const [liveChannels, setLiveChannels] = useState<SidebarChannel[]>(channels);
   const [liveMembers, setLiveMembers] = useState<MemberData[]>(members);
+  const [liveConversations, setLiveConversations] = useState<SidebarConversation[]>(conversations);
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -152,6 +145,7 @@ export function DmPageClient({
   // Modals
   const [createChannelOpen, setCreateChannelOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [groupDmOpen, setGroupDmOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [createPollOpen, setCreatePollOpen] = useState(false);
   const [translatedMessages, setTranslatedMessages] = useState<Record<string, string>>({});
@@ -285,6 +279,72 @@ export function DmPageClient({
         break;
       }
     }
+  }
+
+  // ── Drag and drop file upload ──
+  const [dragging, setDragging] = useState(false);
+  const dragCounter = useRef(0);
+
+  function handleDragEnter(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current++;
+    if (e.dataTransfer.types.includes("Files")) {
+      setDragging(true);
+    }
+  }
+
+  function handleDragLeave(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current--;
+    if (dragCounter.current === 0) {
+      setDragging(false);
+    }
+  }
+
+  function handleDragOver(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+
+  async function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragging(false);
+    dragCounter.current = 0;
+
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length === 0) return;
+
+    for (const file of files) {
+      setUploading(true);
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const res = await fetch("/api/upload", {
+          method: "POST",
+          body: formData,
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+          setAttachments((prev) => [
+            ...prev,
+            {
+              url: data.url,
+              file_name: data.file_name,
+              file_type: data.file_type,
+              file_size: data.file_size,
+            },
+          ]);
+        }
+      } finally {
+        setUploading(false);
+      }
+    }
+    inputRef.current?.focus();
   }
 
   // Cmd+K / Ctrl+K to open search
@@ -626,10 +686,152 @@ export function DmPageClient({
       )
       .subscribe();
 
+    // Box members (join/leave) — updates sidebar member list
+    const boxMembersSub = supabase
+      .channel(`box-members-${box.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "box_members",
+          filter: `box_id=eq.${box.id}`,
+        },
+        async (payload) => {
+          const row = payload.new as { id: string; user_id: string; role: string; joined_at: string };
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("id, full_name, email, avatar_url, status, username, status_text, status_emoji, status_expires_at")
+            .eq("id", row.user_id)
+            .single();
+          if (profile) {
+            setLiveMembers((prev) => {
+              if (prev.some((m) => m.user_id === profile.id)) return prev;
+              return [...prev, {
+                id: row.id,
+                user_id: profile.id,
+                role: row.role,
+                full_name: profile.full_name || "",
+                email: profile.email || "",
+                avatar_url: profile.avatar_url,
+                status: profile.status || "offline",
+                username: profile.username || profile.email?.split("@")[0] || "",
+                status_text: profile.status_text ?? null,
+                status_emoji: profile.status_emoji ?? null,
+                status_expires_at: profile.status_expires_at ?? null,
+              }];
+            });
+          }
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "DELETE",
+          schema: "public",
+          table: "box_members",
+          filter: `box_id=eq.${box.id}`,
+        },
+        (payload) => {
+          const old = payload.old as { id?: string; user_id?: string };
+          setLiveMembers((prev) =>
+            prev.filter((m) => m.id !== old.id && m.user_id !== old.user_id)
+          );
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "box_members",
+          filter: `box_id=eq.${box.id}`,
+        },
+        (payload) => {
+          const updated = payload.new as { id: string; user_id: string; role: string };
+          setLiveMembers((prev) =>
+            prev.map((m) =>
+              m.user_id === updated.user_id ? { ...m, role: updated.role } : m
+            )
+          );
+        }
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(channelsSub);
+      supabase.removeChannel(boxMembersSub);
     };
   }, [box?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Realtime: conversations (sidebar DMs) ──
+  useEffect(() => {
+    const supabase = createClient();
+
+    const convSub = supabase
+      .channel(`conv-participants-${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "conversation_participants",
+          filter: `user_id=eq.${user.id}`,
+        },
+        async () => {
+          const { data: participations } = await supabase
+            .from("conversation_participants")
+            .select("conversation_id")
+            .eq("user_id", user.id);
+
+          if (!participations || participations.length === 0) return;
+
+          const convoIds = participations.map((p) => p.conversation_id);
+
+          const [convosResult, participantsResult] = await Promise.all([
+            supabase
+              .from("conversations")
+              .select("id, short_id, is_group, name, created_at, updated_at")
+              .in("id", convoIds)
+              .order("updated_at", { ascending: false }),
+            supabase
+              .from("conversation_participants")
+              .select("conversation_id, user_id, profiles(id, full_name, email, avatar_url)")
+              .in("conversation_id", convoIds),
+          ]);
+
+          if (!convosResult.data) return;
+
+          const participantsByConvo = new Map<string, { user_id: string; full_name: string; email: string; avatar_url: string | null }[]>();
+          for (const p of participantsResult.data ?? []) {
+            const profile = p.profiles as unknown as { id: string; full_name: string; email: string; avatar_url: string | null };
+            const list = participantsByConvo.get(p.conversation_id) ?? [];
+            list.push({
+              user_id: p.user_id,
+              full_name: profile.full_name,
+              email: profile.email,
+              avatar_url: profile.avatar_url,
+            });
+            participantsByConvo.set(p.conversation_id, list);
+          }
+
+          const updated: SidebarConversation[] = convosResult.data.map((c) => ({
+            id: c.id,
+            short_id: c.short_id,
+            is_group: c.is_group,
+            name: c.name,
+            participants: participantsByConvo.get(c.id) ?? [],
+          }));
+
+          setLiveConversations(updated);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(convSub);
+    };
+  }, [user.id]);
 
   // ── Send ──
   const sendCounterRef = useRef(0);
@@ -881,6 +1083,54 @@ export function DmPageClient({
     inputRef.current?.focus();
   }
 
+  // ── Schedule message ──
+  const [scheduleConfirm, setScheduleConfirm] = useState<string | null>(null);
+
+  async function handleSchedule(date: Date) {
+    const content = newMessage.trim();
+    const hasAttachments = attachments.length > 0;
+    if (!content && !hasAttachments) return;
+    if (content.length > MAX_MESSAGE_LENGTH) return;
+
+    const parts: string[] = [];
+    if (content) parts.push(content);
+    for (const a of attachments) {
+      parts.push(a.url);
+    }
+    const fullContent = parts.join("\n");
+
+    try {
+      const res = await fetch("/api/messages/schedule", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          conversation_id: conversation.id,
+          content: fullContent,
+          scheduled_for: date.toISOString(),
+          parent_message_id: replyingTo?.id ?? null,
+          attachments: attachments.length > 0 ? attachments : [],
+        }),
+      });
+      if (res.ok) {
+        setNewMessage("");
+        setAttachments([]);
+        setReplyingTo(null);
+        const timeStr = date.toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+        setScheduleConfirm(`Message scheduled for ${timeStr}`);
+        setTimeout(() => setScheduleConfirm(null), 4000);
+        // Trigger send endpoint when the scheduled time arrives
+        const delay = date.getTime() - Date.now() + 2000;
+        if (delay > 0) {
+          setTimeout(() => {
+            fetch("/api/messages/schedule/send", { method: "POST" }).catch(() => {});
+          }, delay);
+        }
+      }
+    } catch {
+      // silently fail
+    }
+  }
+
   // ── Edit ──
   async function handleEditSave() {
     if (!editingId || !editContent.trim()) return;
@@ -1083,11 +1333,27 @@ export function DmPageClient({
         activeCalls={activeCalls}
         dmLoading={dmLoading}
         isSelfDm={otherParticipants.length === 0}
-        conversations={conversations}
+        conversations={liveConversations}
+        onCreateGroupDm={() => setGroupDmOpen(true)}
       />
 
       {/* Chat area */}
-      <div className="flex flex-1 flex-col">
+      <div
+        className="relative flex flex-1 flex-col"
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+      >
+        {/* Drop overlay */}
+        {dragging && (
+          <div className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center bg-[#0a0a0a]/80 backdrop-blur-sm">
+            <div className="flex flex-col items-center gap-2 rounded-[12px] border-2 border-dashed border-[#555] px-10 py-8">
+              <svg className="h-8 w-8 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <span className="text-[14px] font-medium text-white">Drop files to upload</span>
+            </div>
+          </div>
+        )}
         {/* Header */}
         <div className="shrink-0 border-b border-[#1a1a1a]">
           <div className="flex h-12 items-center gap-3 px-4">
@@ -1372,6 +1638,16 @@ export function DmPageClient({
           </div>
         )}
 
+        {/* Schedule confirmation */}
+        {scheduleConfirm && (
+          <div className="px-4 pb-1">
+            <div className="flex items-center gap-2 rounded-[6px] bg-[#1a2a1a] px-3 py-1.5 text-[12px] text-[#6fdd6f]">
+              <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              {scheduleConfirm}
+            </div>
+          </div>
+        )}
+
         {/* Composer */}
         <MessageComposer
           placeholder={`Message ${displayName}`}
@@ -1391,6 +1667,7 @@ export function DmPageClient({
           onFileUpload={handleFileUpload}
           onSend={handleSend}
           members={liveMembers}
+          onSchedule={handleSchedule}
           onGifSelect={async (gif) => {
             if (sending) return;
             setSending(true);
@@ -1451,6 +1728,13 @@ export function DmPageClient({
           />
         </>
       )}
+      <GroupDmModal
+        open={groupDmOpen}
+        onClose={() => setGroupDmOpen(false)}
+        members={liveMembers}
+        currentUserId={user.id}
+        boxShortId={box?.short_id}
+      />
       <SearchModal
         open={searchOpen}
         onClose={() => setSearchOpen(false)}

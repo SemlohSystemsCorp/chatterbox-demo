@@ -114,8 +114,15 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Use service role to bypass RLS for DM creation —
+  // the new member can't query other users' conversation_participants yet
+  const admin = createServiceClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+
   // Create self-DM (Saved Messages)
-  const { data: selfConvos } = await supabase
+  const { data: selfConvos } = await admin
     .from("conversation_participants")
     .select("conversation_id")
     .eq("user_id", user.id);
@@ -123,7 +130,7 @@ export async function POST(request: NextRequest) {
   let hasSelfDm = false;
   if (selfConvos) {
     for (const c of selfConvos) {
-      const { count } = await supabase
+      const { count } = await admin
         .from("conversation_participants")
         .select("id", { count: "exact", head: true })
         .eq("conversation_id", c.conversation_id);
@@ -135,20 +142,20 @@ export async function POST(request: NextRequest) {
   }
 
   if (!hasSelfDm) {
-    const { data: selfConvo } = await supabase
+    const { data: selfConvo } = await admin
       .from("conversations")
       .insert({ is_group: false })
       .select("id")
       .single();
     if (selfConvo) {
-      await supabase
+      await admin
         .from("conversation_participants")
         .insert({ conversation_id: selfConvo.id, user_id: user.id });
     }
   }
 
   // Create 1:1 DMs with every existing member
-  const { data: existingMembers } = await supabase
+  const { data: existingMembers } = await admin
     .from("box_members")
     .select("user_id")
     .eq("box_id", invite.box_id)
@@ -157,12 +164,12 @@ export async function POST(request: NextRequest) {
   if (existingMembers && existingMembers.length > 0) {
     for (const member of existingMembers) {
       // Check if a 1:1 conversation already exists between these two users
-      const { data: existing } = await supabase
+      const { data: existing } = await admin
         .from("conversation_participants")
         .select("conversation_id")
         .eq("user_id", user.id);
 
-      const { data: otherExisting } = await supabase
+      const { data: otherExisting } = await admin
         .from("conversation_participants")
         .select("conversation_id")
         .eq("user_id", member.user_id);
@@ -174,7 +181,7 @@ export async function POST(request: NextRequest) {
       // Check if any shared conversation is a 1:1 (not group)
       let alreadyExists = false;
       for (const convoId of shared) {
-        const { data: convo } = await supabase
+        const { data: convo } = await admin
           .from("conversations")
           .select("is_group")
           .eq("id", convoId)
@@ -187,14 +194,14 @@ export async function POST(request: NextRequest) {
 
       if (!alreadyExists) {
         // Create a new 1:1 conversation
-        const { data: newConvo } = await supabase
+        const { data: newConvo } = await admin
           .from("conversations")
           .insert({ is_group: false })
           .select("id")
           .single();
 
         if (newConvo) {
-          await supabase.from("conversation_participants").insert([
+          await admin.from("conversation_participants").insert([
             { conversation_id: newConvo.id, user_id: user.id },
             { conversation_id: newConvo.id, user_id: member.user_id },
           ]);

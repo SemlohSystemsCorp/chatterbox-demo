@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { getAuthUser, getUserBoxes, getUserConversations } from "@/lib/data";
+import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { DashboardClient } from "./dashboard-client";
 
 export const metadata: Metadata = {
@@ -82,6 +83,57 @@ export default async function DashboardPage() {
     participants: c.participants,
   }));
 
+  // Use service role to bypass RLS — user isn't a member of invited boxes
+  const admin = createServiceClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+
+  // Fetch pending invites for the user's email
+  const { data: rawInvites } = await admin
+    .from("invites")
+    .select("code, role, box_id, created_by, expires_at, max_uses, uses")
+    .eq("email", user.email.toLowerCase())
+    .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`);
+
+  let pendingInvites: { code: string; boxName: string; boxIconUrl: string | null; role: string; inviterName: string | null; memberCount: number }[] = [];
+
+  if (rawInvites && rawInvites.length > 0) {
+    const validInvites = rawInvites.filter(
+      (inv) => inv.max_uses === null || inv.uses < inv.max_uses
+    );
+    // Filter out boxes user already belongs to
+    const newInvites = validInvites.filter((inv) => !boxIds.includes(inv.box_id));
+
+    if (newInvites.length > 0) {
+      const newBoxIds = [...new Set(newInvites.map((inv) => inv.box_id))];
+      const [invBoxes, invMembers, inviters] = await Promise.all([
+        admin.from("boxes").select("id, name, icon_url").in("id", newBoxIds),
+        admin.from("box_members").select("box_id").in("box_id", newBoxIds),
+        admin.from("profiles").select("id, full_name").in("id", [...new Set(newInvites.map((inv) => inv.created_by))]),
+      ]);
+
+      const boxMap = new Map((invBoxes.data ?? []).map((b) => [b.id, b]));
+      const inviterMap = new Map((inviters.data ?? []).map((p) => [p.id, p.full_name]));
+      const invMemberCounts: Record<string, number> = {};
+      for (const row of invMembers.data ?? []) {
+        invMemberCounts[row.box_id] = (invMemberCounts[row.box_id] ?? 0) + 1;
+      }
+
+      pendingInvites = newInvites.map((inv) => {
+        const box = boxMap.get(inv.box_id);
+        return {
+          code: inv.code,
+          boxName: box?.name ?? "Unknown",
+          boxIconUrl: box?.icon_url ?? null,
+          role: inv.role,
+          inviterName: inviterMap.get(inv.created_by) ?? null,
+          memberCount: invMemberCounts[inv.box_id] ?? 0,
+        };
+      });
+    }
+  }
+
   return (
     <DashboardClient
       user={user}
@@ -89,6 +141,7 @@ export default async function DashboardPage() {
       boxStats={boxStats}
       recentChannels={recentChannelsByBox}
       recentDMs={recentDMs}
+      pendingInvites={pendingInvites}
     />
   );
 }

@@ -1,20 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import {
-  Plus,
-  Link as LinkIcon,
-  Hash,
-  Users,
-  ArrowRight,
-  Crown,
-  Shield,
-  MessageSquare,
-  Settings,
-  LogOut,
-  MessageCircle,
-} from "lucide-react";
+import { PlusIcon as Plus, LinkIcon, HashIcon as Hash, PeopleIcon as Users, ArrowRightIcon as ArrowRight, TrophyIcon as Crown, ShieldIcon as Shield, CommentDiscussionIcon as MessageSquare, GearIcon as Settings, SignOutIcon as LogOut, CommentIcon as MessageCircle, MailIcon as Mail } from "@primer/octicons-react";
+import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { useSettingsStore } from "@/stores/settings-store";
 import { createClient } from "@/lib/supabase/client";
@@ -29,12 +18,22 @@ interface DMData {
   participants: { user_id: string; full_name: string; email: string; avatar_url: string | null }[];
 }
 
+interface PendingInviteData {
+  code: string;
+  boxName: string;
+  boxIconUrl: string | null;
+  role: string;
+  inviterName: string | null;
+  memberCount: number;
+}
+
 interface DashboardClientProps {
   user: UserData;
   boxes: BoxData[];
   boxStats: Record<string, { channels: number; members: number }>;
   recentChannels: Record<string, { short_id: string; name: string }[]>;
   recentDMs: DMData[];
+  pendingInvites: PendingInviteData[];
 }
 
 function getRoleBadge(role: string) {
@@ -64,10 +63,13 @@ function timeAgo(dateStr: string) {
   return new Date(dateStr).toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
-export function DashboardClient({ user, boxes, boxStats, recentChannels, recentDMs }: DashboardClientProps) {
+export function DashboardClient({ user, boxes, boxStats, recentChannels, recentDMs, pendingInvites: initialInvites }: DashboardClientProps) {
   const router = useRouter();
   const firstName = user.fullName?.split(" ")[0] || "there";
   const { loaded, loadFromServer } = useSettingsStore();
+  const [pendingInvites, setPendingInvites] = useState(initialInvites);
+  const [joiningCode, setJoiningCode] = useState<string | null>(null);
+  const [joinError, setJoinError] = useState("");
 
   useEffect(() => {
     if (!loaded) loadFromServer();
@@ -78,6 +80,35 @@ export function DashboardClient({ user, boxes, boxStats, recentChannels, recentD
     await supabase.auth.signOut();
     router.push("/login");
     router.refresh();
+  }
+
+  async function handleJoinInvite(code: string) {
+    setJoinError("");
+    setJoiningCode(code);
+
+    try {
+      const res = await fetch("/api/invites/join", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setJoinError(data.error || "Failed to join");
+        setJoiningCode(null);
+        return;
+      }
+
+      // Remove the invite from the list and navigate
+      setPendingInvites((prev) => prev.filter((inv) => inv.code !== code));
+      router.push(`/box/${data.box.short_id}`);
+      router.refresh();
+    } catch {
+      setJoinError("Something went wrong");
+      setJoiningCode(null);
+    }
   }
 
   return (
@@ -138,10 +169,10 @@ export function DashboardClient({ user, boxes, boxStats, recentChannels, recentD
           </div>
 
           {/* Quick actions — always visible */}
-          <div className="mb-8 flex gap-3">
+          <div className="mb-8 grid grid-cols-3 gap-3">
             <Link
               href="/create/box"
-              className="group flex flex-1 items-center gap-3 rounded-[12px] border border-[#1a1a1a] bg-[#0f0f0f] p-4 transition-colors hover:border-[#2a2a2a] hover:bg-[#111]"
+              className="group flex items-center gap-3 rounded-[12px] border border-[#1a1a1a] bg-[#0f0f0f] p-4 transition-colors hover:border-[#2a2a2a] hover:bg-[#111]"
             >
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-white text-black">
                 <Plus className="h-5 w-5" />
@@ -153,7 +184,7 @@ export function DashboardClient({ user, boxes, boxStats, recentChannels, recentD
             </Link>
             <Link
               href="/join"
-              className="group flex flex-1 items-center gap-3 rounded-[12px] border border-[#1a1a1a] bg-[#0f0f0f] p-4 transition-colors hover:border-[#2a2a2a] hover:bg-[#111]"
+              className="group flex items-center gap-3 rounded-[12px] border border-[#1a1a1a] bg-[#0f0f0f] p-4 transition-colors hover:border-[#2a2a2a] hover:bg-[#111]"
             >
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-[#1a1a1a] text-white">
                 <LinkIcon className="h-5 w-5" />
@@ -163,7 +194,87 @@ export function DashboardClient({ user, boxes, boxStats, recentChannels, recentD
                 <div className="mt-0.5 text-[12px] text-[#555]">Invite code or link</div>
               </div>
             </Link>
+            <Link
+              href="/dashboard/messages"
+              className="group flex items-center gap-3 rounded-[12px] border border-[#1a1a1a] bg-[#0f0f0f] p-4 transition-colors hover:border-[#2a2a2a] hover:bg-[#111]"
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-[#1a1a1a] text-white">
+                <MessageCircle className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="text-[14px] font-semibold text-white">Messages</div>
+                <div className="mt-0.5 text-[12px] text-[#555]">DMs &amp; groups</div>
+              </div>
+            </Link>
           </div>
+
+          {/* Pending Invites */}
+          {pendingInvites.length > 0 && (
+            <div className="mb-8">
+              <h3 className="mb-3 flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-[#444]">
+                <Mail className="h-3 w-3" />
+                Pending Invites
+              </h3>
+
+              <div className="space-y-2">
+                {pendingInvites.map((invite) => {
+                  const initials = invite.boxName
+                    .split(" ")
+                    .map((w) => w[0])
+                    .join("")
+                    .slice(0, 2)
+                    .toUpperCase();
+                  const isJoining = joiningCode === invite.code;
+
+                  return (
+                    <div
+                      key={invite.code}
+                      className="flex items-center gap-4 rounded-[12px] border border-[#1a1a1a] bg-[#0f0f0f] p-4"
+                    >
+                      {invite.boxIconUrl ? (
+                        <img
+                          src={invite.boxIconUrl}
+                          alt=""
+                          className="h-11 w-11 shrink-0 rounded-[10px]"
+                        />
+                      ) : (
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] bg-white text-[13px] font-bold text-black">
+                          {initials}
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-[15px] font-semibold text-white">
+                          {invite.boxName}
+                        </div>
+                        <div className="mt-0.5 flex items-center gap-2 text-[12px] text-[#555]">
+                          <Users className="h-3 w-3" />
+                          {invite.memberCount} member{invite.memberCount !== 1 ? "s" : ""}
+                          {invite.inviterName && (
+                            <>
+                              <span className="text-[#333]">·</span>
+                              <span>Invited by {invite.inviterName}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      <Button
+                        onClick={() => handleJoinInvite(invite.code)}
+                        loading={isJoining}
+                        disabled={joiningCode !== null}
+                        className="shrink-0"
+                      >
+                        Join
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {joinError && (
+                <p className="mt-2 text-[13px] text-[#de1135]">{joinError}</p>
+              )}
+            </div>
+          )}
 
           {/* Boxes */}
           {boxes.length > 0 && (

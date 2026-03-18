@@ -3,16 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  Hash,
-  Lock,
-  Plus,
-  Bot,
-  Circle,
-  MessageSquare,
-  Phone,
-  Bookmark,
-} from "lucide-react";
+import { HashIcon as Hash, LockIcon as Lock, PlusIcon as Plus, HubotIcon as Bot, CircleIcon as Circle, CommentDiscussionIcon as MessageSquare, DeviceMobileIcon as Phone, BookmarkIcon as Bookmark } from "@primer/octicons-react";
 import { BoxSwitcher } from "@/components/chat/box-switcher";
 import { UserPopover } from "@/components/chat/user-popover";
 import { createClient } from "@/lib/supabase/client";
@@ -66,6 +57,7 @@ interface ChatSidebarProps {
   isSelfDm?: boolean;
   /** DM conversations to display in sidebar */
   conversations?: SidebarConversation[];
+  onCreateGroupDm?: () => void;
 }
 
 export function ChatSidebar({
@@ -88,6 +80,7 @@ export function ChatSidebar({
   currentChannelId,
   isSelfDm,
   conversations,
+  onCreateGroupDm,
 }: ChatSidebarProps) {
   const router = useRouter();
   const isAdmin = box?.role === "owner" || box?.role === "admin";
@@ -265,6 +258,14 @@ export function ChatSidebar({
           <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#444]">
             Direct Messages
           </span>
+          {onCreateGroupDm && (
+            <button
+              onClick={onCreateGroupDm}
+              className="flex h-4 w-4 items-center justify-center rounded text-[#444] hover:text-white"
+            >
+              <Plus className="h-3 w-3" />
+            </button>
+          )}
         </div>
         <div className="space-y-0.5">
           {/* Saved Messages (self-DM) */}

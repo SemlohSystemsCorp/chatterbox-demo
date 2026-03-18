@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
-import { Send, Plus, Smile, Reply, X, Image } from "lucide-react";
+import { PaperAirplaneIcon as Send, PlusIcon as Plus, SmileyIcon as Smile, ReplyIcon as Reply, XIcon as X, ImageIcon as Image, ClockIcon as Clock } from "@primer/octicons-react";
 import { EmojiPicker } from "@/components/emoji-picker";
 import { GifPicker } from "@/components/gif-picker";
 import { ToneAdjuster } from "@/components/chat/tone-adjuster";
 import { MentionPicker } from "@/components/chat/mention-picker";
 import { SlashCommandPicker } from "@/components/chat/slash-command-picker";
+import { SchedulePicker } from "@/components/chat/schedule-picker";
 import type { MessageData, MemberData } from "@/lib/chat-helpers";
 import type { SlashCommand } from "@/lib/slash-commands";
 
@@ -42,6 +43,18 @@ export interface MessageComposerProps {
   members?: MemberData[];
   /** Called when user picks a GIF from the picker */
   onGifSelect?: (gif: { url: string; title: string; width: number; height: number }) => void;
+  /** Called when user confirms scheduling a message */
+  onSchedule?: (date: Date) => void;
+}
+
+function formatScheduleTime(date: Date): string {
+  return date.toLocaleString([], {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 // ── Component ──
@@ -65,10 +78,12 @@ export function MessageComposer({
   onSend,
   members,
   onGifSelect,
+  onSchedule,
 }: MessageComposerProps) {
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [mentionStart, setMentionStart] = useState(0);
   const [slashQuery, setSlashQuery] = useState<string | null>(null);
+  const [scheduledFor, setScheduledFor] = useState<Date | null>(null);
 
   // Detect slash command: only when "/" is at position 0
   const showSlashPicker = useMemo(() => {
@@ -172,10 +187,29 @@ export function MessageComposer({
           return;
         }
       }
+      // If in schedule mode and Enter (no shift), intercept to confirm schedule
+      if (scheduledFor && e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        onSchedule?.(scheduledFor);
+        setScheduledFor(null);
+        return;
+      }
       onKeyDown(e);
     },
-    [slashQuery, newMessage, mentionQuery, members, onKeyDown],
+    [slashQuery, newMessage, mentionQuery, members, scheduledFor, onSchedule, onKeyDown],
   );
+
+  function handleSendClick() {
+    if (scheduledFor) {
+      onSchedule?.(scheduledFor);
+      setScheduledFor(null);
+    } else {
+      onSend();
+    }
+  }
+
+  const hasContent = newMessage.trim() || attachments.length > 0;
+  const isDisabled = !hasContent || sending || newMessage.length > MAX_MESSAGE_LENGTH;
 
   return (
     <div className="shrink-0 px-4 pb-4">
@@ -205,6 +239,23 @@ export function MessageComposer({
             onSelect={handleMentionSelect}
             onClose={() => setMentionQuery(null)}
           />
+        )}
+
+        {/* Schedule mode banner */}
+        {scheduledFor && (
+          <div className="flex items-center gap-2 border-b border-[#1a1a1a] px-3 py-2">
+            <Clock className="h-3.5 w-3.5 shrink-0 text-[#d4a843]" />
+            <span className="text-[12px] text-[#d4a843]">
+              Will send {formatScheduleTime(scheduledFor)}
+            </span>
+            <span className="text-[12px] text-[#555]">— press Send to confirm</span>
+            <button
+              onClick={() => setScheduledFor(null)}
+              className="ml-auto flex h-5 w-5 shrink-0 items-center justify-center rounded text-[#555] hover:text-white"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
         )}
 
         {/* Reply bar */}
@@ -328,7 +379,7 @@ export function MessageComposer({
               <kbd className="rounded bg-[#0a0a0a] px-1 py-0.5 text-[10px] text-[#555]">
                 Enter
               </kbd>{" "}
-              to send ·{" "}
+              to {scheduledFor ? "schedule" : "send"} ·{" "}
               <kbd className="rounded bg-[#0a0a0a] px-1 py-0.5 text-[10px] text-[#555]">
                 Shift+Enter
               </kbd>{" "}
@@ -345,13 +396,27 @@ export function MessageComposer({
               text={newMessage}
               onRewrite={(text) => onNewMessageChange(text)}
             />
+            {onSchedule && (
+              <SchedulePicker
+                onSchedule={(date) => setScheduledFor(date)}
+                disabled={isDisabled}
+              />
+            )}
             <button
-              onClick={onSend}
-              disabled={(!newMessage.trim() && attachments.length === 0) || sending || newMessage.length > MAX_MESSAGE_LENGTH}
-              className="flex h-7 w-7 items-center justify-center rounded-[6px] bg-white text-black transition-colors hover:bg-[#e0e0e0] disabled:bg-[#1a1a1a] disabled:text-[#555]"
-              title="Send message"
+              onClick={handleSendClick}
+              disabled={isDisabled}
+              className={`flex h-7 items-center justify-center gap-1 rounded-[6px] px-2 transition-colors disabled:bg-[#1a1a1a] disabled:text-[#555] ${
+                scheduledFor
+                  ? "bg-[#d4a843] text-black hover:bg-[#c49a3a]"
+                  : "bg-white text-black hover:bg-[#e0e0e0]"
+              }`}
+              title={scheduledFor ? "Confirm schedule" : "Send message"}
             >
-              <Send className="h-3.5 w-3.5" />
+              {scheduledFor ? (
+                <Clock className="h-3.5 w-3.5" />
+              ) : (
+                <Send className="h-3.5 w-3.5" />
+              )}
             </button>
           </div>
         </div>

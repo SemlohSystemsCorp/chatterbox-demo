@@ -2,38 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-  ArrowLeft,
-  Link as LinkIcon,
-  AlertCircle,
-  Hash,
-  Users,
-} from "lucide-react";
+import { ArrowLeftIcon as ArrowLeft, LinkIcon, AlertIcon as AlertCircle, HashIcon as Hash, PeopleIcon as Users, CommentDiscussionIcon as MessageSquare } from "@primer/octicons-react";
 import Link from "next/link";
-import { AppShell } from "@/components/layout/app-shell";
-import { TopBar } from "@/components/layout/top-bar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-
-interface BoxData {
-  id: string;
-  short_id: string;
-  name: string;
-  slug: string;
-  icon_url: string | null;
-  plan: string;
-  role: string;
-}
-
-interface JoinBoxClientProps {
-  user: {
-    id: string;
-    email: string;
-    fullName: string;
-    avatarUrl: string | null;
-  };
-  boxes: BoxData[];
-}
 
 interface InviteInfo {
   code: string;
@@ -54,7 +26,6 @@ type ViewState = "input" | "preview" | "error";
 function extractCode(input: string): string {
   const trimmed = input.trim();
 
-  // Try to extract from URL patterns
   try {
     const url = new URL(trimmed, "https://placeholder.com");
     const codeParam = url.searchParams.get("code");
@@ -63,15 +34,13 @@ function extractCode(input: string): string {
     // not a URL
   }
 
-  // /invite/abc123
   const inviteMatch = trimmed.match(/\/invite\/([a-zA-Z0-9]+)/);
   if (inviteMatch) return inviteMatch[1];
 
-  // Raw code
   return trimmed;
 }
 
-export function JoinBoxClient({ user, boxes }: JoinBoxClientProps) {
+export function JoinBoxClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [code, setCode] = useState("");
@@ -81,7 +50,6 @@ export function JoinBoxClient({ user, boxes }: JoinBoxClientProps) {
   const [view, setView] = useState<ViewState>("input");
   const [invite, setInvite] = useState<InviteInfo | null>(null);
 
-  // Auto-lookup if ?code= is in URL
   useEffect(() => {
     const urlCode = searchParams.get("code");
     if (urlCode) {
@@ -142,7 +110,6 @@ export function JoinBoxClient({ user, boxes }: JoinBoxClientProps) {
 
       if (!res.ok) {
         if (res.status === 409 && data.box) {
-          // Already a member — go straight to the box
           router.refresh();
           router.push(
             data.box.short_id
@@ -157,7 +124,6 @@ export function JoinBoxClient({ user, boxes }: JoinBoxClientProps) {
         return;
       }
 
-      // Navigate directly to the box — refresh first so sidebar picks up the new membership
       router.refresh();
       router.push(
         data.box?.short_id
@@ -180,22 +146,26 @@ export function JoinBoxClient({ user, boxes }: JoinBoxClientProps) {
   }
 
   return (
-    <AppShell user={user} boxes={boxes}>
-      <TopBar
-        title="Join a Box"
-        actions={
-          <Link
-            href="/dashboard"
-            className="flex h-8 items-center gap-1.5 rounded-[8px] px-3 text-[13px] text-[#666] transition-colors hover:bg-[#1a1a1a] hover:text-white"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            Back
-          </Link>
-        }
-      />
+    <div className="flex min-h-screen flex-col bg-[#0a0a0a]">
+      {/* Top bar */}
+      <div className="flex h-14 shrink-0 items-center justify-between border-b border-[#1a1a1a] px-6">
+        <Link href="/dashboard" className="flex items-center gap-2">
+          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-white">
+            <MessageSquare className="h-4 w-4 text-black" />
+          </div>
+          <span className="text-[15px] font-bold text-white">Chatterbox</span>
+        </Link>
+        <Link
+          href="/dashboard"
+          className="flex h-8 items-center gap-1.5 rounded-[8px] px-3 text-[13px] text-[#666] transition-colors hover:bg-[#1a1a1a] hover:text-white"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Dashboard
+        </Link>
+      </div>
 
-      <div className="flex-1 overflow-auto">
-        <div className="mx-auto max-w-[480px] px-6 py-10">
+      <div className="flex flex-1 items-center justify-center px-6">
+        <div className="w-full max-w-[480px]">
           {/* Input View */}
           {view === "input" && (
             <>
@@ -289,7 +259,6 @@ export function JoinBoxClient({ user, boxes }: JoinBoxClientProps) {
                   </div>
                 </div>
 
-                {/* Stats */}
                 <div className="mt-4 flex items-center justify-center gap-4 border-t border-[#1a1a1a] pt-4">
                   <span className="flex items-center gap-1.5 text-[13px] text-[#666]">
                     <Users className="h-3.5 w-3.5" />
@@ -302,7 +271,6 @@ export function JoinBoxClient({ user, boxes }: JoinBoxClientProps) {
                   </span>
                 </div>
 
-                {/* Role badge */}
                 <div className="mt-3 flex justify-center">
                   <span className="rounded-full bg-[#1a1a1a] px-3 py-1 text-[12px] capitalize text-[#888]">
                     Joining as {invite.role}
@@ -329,7 +297,6 @@ export function JoinBoxClient({ user, boxes }: JoinBoxClientProps) {
             </>
           )}
 
-
           {/* Error View */}
           {view === "error" && (
             <div className="text-center">
@@ -350,6 +317,6 @@ export function JoinBoxClient({ user, boxes }: JoinBoxClientProps) {
           )}
         </div>
       </div>
-    </AppShell>
+    </div>
   );
 }

@@ -2,34 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Box } from "lucide-react";
+import { ArrowLeftIcon as ArrowLeft, PackageIcon as Box, CommentDiscussionIcon as MessageSquare } from "@primer/octicons-react";
 import Link from "next/link";
-import { AppShell } from "@/components/layout/app-shell";
-import { TopBar } from "@/components/layout/top-bar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-interface BoxData {
-  id: string;
-  short_id: string;
-  name: string;
-  slug: string;
-  icon_url: string | null;
-  plan: string;
-  role: string;
-}
-
-interface CreateBoxClientProps {
-  user: {
-    id: string;
-    email: string;
-    fullName: string;
-    avatarUrl: string | null;
-  };
-  boxes: BoxData[];
-}
-
-export function CreateBoxClient({ user, boxes }: CreateBoxClientProps) {
+export function CreateBoxClient() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -73,22 +51,26 @@ export function CreateBoxClient({ user, boxes }: CreateBoxClientProps) {
   }
 
   return (
-    <AppShell user={user} boxes={boxes}>
-      <TopBar
-        title="Create a Box"
-        actions={
-          <Link
-            href="/dashboard"
-            className="flex h-8 items-center gap-1.5 rounded-[8px] px-3 text-[13px] text-[#666] transition-colors hover:bg-[#1a1a1a] hover:text-white"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" />
-            Back
-          </Link>
-        }
-      />
+    <div className="flex min-h-screen flex-col bg-[#0a0a0a]">
+      {/* Top bar */}
+      <div className="flex h-14 shrink-0 items-center justify-between border-b border-[#1a1a1a] px-6">
+        <Link href="/dashboard" className="flex items-center gap-2">
+          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-white">
+            <MessageSquare className="h-4 w-4 text-black" />
+          </div>
+          <span className="text-[15px] font-bold text-white">Chatterbox</span>
+        </Link>
+        <Link
+          href="/dashboard"
+          className="flex h-8 items-center gap-1.5 rounded-[8px] px-3 text-[13px] text-[#666] transition-colors hover:bg-[#1a1a1a] hover:text-white"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Dashboard
+        </Link>
+      </div>
 
-      <div className="flex-1 overflow-auto">
-        <div className="mx-auto max-w-[480px] px-6 py-10">
+      <div className="flex flex-1 items-center justify-center px-6">
+        <div className="w-full max-w-[480px]">
           {/* Header */}
           <div className="mb-8 text-center">
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-white">
@@ -155,6 +137,6 @@ export function CreateBoxClient({ user, boxes }: CreateBoxClientProps) {
           </form>
         </div>
       </div>
-    </AppShell>
+    </div>
   );
 }
